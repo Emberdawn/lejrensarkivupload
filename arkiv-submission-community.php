@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
 
 class Arkiv_Submission_Plugin {
   const CPT = 'arkiv';
-  const TAX = 'mapper'; // <-- ret hvis din taxonomy slug er anderledes
+  const TAX = 'mappe'; // <-- ret hvis din taxonomy slug er anderledes
   const META_SUGGESTED_FOLDER = '_arkiv_suggested_folder';
 
   public function __construct() {
