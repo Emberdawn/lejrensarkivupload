@@ -18,6 +18,7 @@ class Arkiv_Submission_Plugin {
   public function __construct() {
     add_shortcode('arkiv_submit', [$this, 'render_shortcode']);
     add_action('init', [$this, 'maybe_handle_submit']);
+    add_action('add_meta_boxes', [$this, 'add_suggested_folder_metabox']);
   }
 
   public function render_shortcode($atts) {
@@ -146,6 +147,32 @@ class Arkiv_Submission_Plugin {
     }
 
     $this->redirect_with('ok');
+  }
+
+  public function add_suggested_folder_metabox() {
+    add_meta_box(
+      'arkiv_suggested_folder_box',
+      'Foreslået mappe',
+      [$this, 'render_suggested_folder_metabox'],
+      self::CPT,
+      'side',
+      'high'
+    );
+  }
+
+  public function render_suggested_folder_metabox($post) {
+    $suggested = get_post_meta($post->ID, self::META_SUGGESTED_FOLDER, true);
+
+    if (!$suggested) {
+      echo '<p><em>Ingen foreslået mappe.</em></p>';
+      return;
+    }
+
+    echo '<p><strong>Bruger foreslog:</strong></p>';
+    echo '<p style="margin:0; padding:8px; background:#f6f7f7; border:1px solid #dcdcde;">'
+      . esc_html($suggested)
+      . '</p>';
+    echo '<p style="margin-top:8px;"><small>Du kan vælge/rette den endelige mappe i boksen “Mappe”.</small></p>';
   }
 
   private function handle_images_upload($post_id) {
