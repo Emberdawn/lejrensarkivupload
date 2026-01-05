@@ -370,6 +370,13 @@ class Arkiv_Submission_Plugin {
   }
 
   public function use_mappe_template($template) {
+    if (is_singular('arkiv')) {
+      $single_template = plugin_dir_path(__FILE__) . 'templates/single-arkiv.php';
+      if (file_exists($single_template)) {
+        return $single_template;
+      }
+    }
+
     if (is_tax('mappe')) {
       $plugin_template = plugin_dir_path(__FILE__) . 'templates/taxonomy-mappe.php';
       if (file_exists($plugin_template)) {
