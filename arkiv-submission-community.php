@@ -15,6 +15,8 @@ class Arkiv_Submission_Plugin {
   const TAX = 'mappe'; // <-- ret hvis din taxonomy slug er anderledes
   const META_SUGGESTED_FOLDER = '_arkiv_suggested_folder';
   const OPTION_MAPPE_KNAPPER_ENABLED = 'arkiv_mappe_knapper_enabled';
+  const OPTION_CPT_SLUG = 'arkiv_cpt_slug';
+  const OPTION_TAX_SLUG = 'arkiv_tax_slug';
 
   public function __construct() {
     add_shortcode('arkiv_submit', [$this, 'render_shortcode']);
@@ -34,7 +36,7 @@ class Arkiv_Submission_Plugin {
     }
 
     $terms = get_terms([
-      'taxonomy' => self::TAX,
+      'taxonomy' => $this->get_taxonomy_slug(),
       'hide_empty' => false,
     ]);
 
@@ -106,7 +108,7 @@ class Arkiv_Submission_Plugin {
     }
 
     $atts = shortcode_atts([
-      'taxonomy' => 'mappe',
+      'taxonomy' => $this->get_taxonomy_slug(),
       'show_empty' => false,
     ], $atts);
 
@@ -188,10 +190,40 @@ class Arkiv_Submission_Plugin {
         'default' => 1,
       ]
     );
+
+    register_setting(
+      'arkiv_submission_settings',
+      self::OPTION_CPT_SLUG,
+      [
+        'type' => 'string',
+        'sanitize_callback' => [$this, 'sanitize_cpt_slug'],
+        'default' => self::CPT,
+      ]
+    );
+
+    register_setting(
+      'arkiv_submission_settings',
+      self::OPTION_TAX_SLUG,
+      [
+        'type' => 'string',
+        'sanitize_callback' => [$this, 'sanitize_tax_slug'],
+        'default' => self::TAX,
+      ]
+    );
   }
 
   public function sanitize_checkbox($value) {
     return !empty($value) ? 1 : 0;
+  }
+
+  public function sanitize_cpt_slug($value) {
+    $value = sanitize_key($value);
+    return $value !== '' ? $value : self::CPT;
+  }
+
+  public function sanitize_tax_slug($value) {
+    $value = sanitize_key($value);
+    return $value !== '' ? $value : self::TAX;
   }
 
   public function render_settings_page() {
@@ -200,12 +232,28 @@ class Arkiv_Submission_Plugin {
     }
 
     $enabled = (int) get_option(self::OPTION_MAPPE_KNAPPER_ENABLED, 1);
+    $cpt_slug = $this->get_post_type_slug();
+    $tax_slug = $this->get_taxonomy_slug();
     ?>
     <div class="wrap">
       <h1>Arkiv Submission</h1>
       <form method="post" action="options.php">
         <?php settings_fields('arkiv_submission_settings'); ?>
         <table class="form-table" role="presentation">
+          <tr>
+            <th scope="row">Post type slug</th>
+            <td>
+              <input type="text" name="<?php echo esc_attr(self::OPTION_CPT_SLUG); ?>" value="<?php echo esc_attr($cpt_slug); ?>" class="regular-text">
+              <p class="description">Skal matche navnet på din registrerede post type.</p>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Taxonomy slug</th>
+            <td>
+              <input type="text" name="<?php echo esc_attr(self::OPTION_TAX_SLUG); ?>" value="<?php echo esc_attr($tax_slug); ?>" class="regular-text">
+              <p class="description">Skal matche navnet på din registrerede taxonomy.</p>
+            </td>
+          </tr>
           <tr>
             <th scope="row">Mappe knapper shortcode</th>
             <td>
@@ -245,7 +293,7 @@ class Arkiv_Submission_Plugin {
 
     // Opret Arkiv-indlæg som Pending Review
     $post_id = wp_insert_post([
-      'post_type' => self::CPT,
+      'post_type' => $this->get_post_type_slug(),
       'post_title' => $title,
       'post_content' => $content,
       'post_status' => 'pending',
@@ -263,7 +311,7 @@ class Arkiv_Submission_Plugin {
 
     // Sæt valgt mappe-term hvis valgt
     if ($term_id > 0) {
-      wp_set_object_terms($post_id, [$term_id], self::TAX, false);
+      wp_set_object_terms($post_id, [$term_id], $this->get_taxonomy_slug(), false);
     }
 
     // Håndter billeduploads
@@ -284,7 +332,7 @@ class Arkiv_Submission_Plugin {
       'arkiv_suggested_folder_box',
       'Foreslået mappe',
       [$this, 'render_suggested_folder_metabox'],
-      self::CPT,
+      $this->get_post_type_slug(),
       'side',
       'high'
     );
@@ -370,14 +418,14 @@ class Arkiv_Submission_Plugin {
   }
 
   public function use_mappe_template($template) {
-    if (is_singular('arkiv')) {
+    if (is_singular($this->get_post_type_slug())) {
       $single_template = plugin_dir_path(__FILE__) . 'templates/single-arkiv.php';
       if (file_exists($single_template)) {
         return $single_template;
       }
     }
 
-    if (is_tax('mappe')) {
+    if (is_tax($this->get_taxonomy_slug())) {
       $plugin_template = plugin_dir_path(__FILE__) . 'templates/taxonomy-mappe.php';
       if (file_exists($plugin_template)) {
         return $plugin_template;
@@ -388,9 +436,17 @@ class Arkiv_Submission_Plugin {
   }
 
   public function restrict_mappe_query_to_arkiv($query) {
-    if (!is_admin() && $query->is_main_query() && $query->is_tax('mappe')) {
-      $query->set('post_type', ['arkiv']);
+    if (!is_admin() && $query->is_main_query() && $query->is_tax($this->get_taxonomy_slug())) {
+      $query->set('post_type', [$this->get_post_type_slug()]);
     }
+  }
+
+  private function get_post_type_slug() {
+    return sanitize_key(get_option(self::OPTION_CPT_SLUG, self::CPT));
+  }
+
+  private function get_taxonomy_slug() {
+    return sanitize_key(get_option(self::OPTION_TAX_SLUG, self::TAX));
   }
 }
 
