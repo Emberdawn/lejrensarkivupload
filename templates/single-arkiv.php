@@ -74,6 +74,59 @@ if (have_posts()) : while (have_posts()) : the_post();
 
     </div>
 
+    <?php if (comments_open() || get_comments_number()) : ?>
+      <section class="arkiv-comments" id="arkivComments">
+        <h2>Kommentarer</h2>
+
+        <?php
+        $comment_menu = get_comments([
+          'post_id' => $post_id,
+          'status' => 'approve',
+          'orderby' => 'comment_date_gmt',
+          'order' => 'ASC',
+        ]);
+        ?>
+
+        <?php if (!empty($comment_menu)) : ?>
+          <nav class="arkiv-comments-menu" aria-label="Tidligere kommentarer">
+            <h3>Tidligere kommentarer</h3>
+            <ol>
+              <?php foreach ($comment_menu as $comment_item) : ?>
+                <li>
+                  <a href="#comment-<?php echo esc_attr($comment_item->comment_ID); ?>">
+                    <?php echo esc_html(get_comment_author($comment_item)); ?>
+                    <span class="arkiv-comment-date">
+                      <?php echo esc_html(get_comment_date('', $comment_item)); ?>
+                    </span>
+                  </a>
+                </li>
+              <?php endforeach; ?>
+            </ol>
+          </nav>
+        <?php endif; ?>
+
+        <?php if (have_comments()) : ?>
+          <ol class="comment-list">
+            <?php
+            wp_list_comments([
+              'style' => 'ol',
+              'short_ping' => true,
+              'reverse_top_level' => false,
+              'reverse_children' => false,
+            ]);
+            ?>
+          </ol>
+        <?php endif; ?>
+
+        <?php
+        comment_form([
+          'title_reply' => 'Skriv en kommentar',
+          'label_submit' => 'Send kommentar',
+        ]);
+        ?>
+      </section>
+    <?php endif; ?>
+
     <!-- Arkiv lightbox start -->
     <div class="arkiv-lightbox" id="arkivLightbox" aria-hidden="true">
       <button class="arkiv-lightbox-close" type="button" aria-label="Luk">&times;</button>
@@ -197,6 +250,78 @@ if (have_posts()) : while (have_posts()) : the_post();
 
     .arkiv-lightbox.is-zoomed img:active {
       cursor: grabbing;
+    }
+
+    /* ===== Arkiv kommentarer ===== */
+    .arkiv-comments {
+      margin: 40px auto 0;
+      max-width: 820px;
+    }
+
+    .arkiv-comments h2 {
+      margin: 0 0 12px;
+      font-size: 24px;
+    }
+
+    .arkiv-comments-menu {
+      background: #f7f7f7;
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-bottom: 20px;
+    }
+
+    .arkiv-comments-menu h3 {
+      margin: 0 0 10px;
+      font-size: 16px;
+    }
+
+    .arkiv-comments-menu ol {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .arkiv-comments-menu li {
+      margin-bottom: 6px;
+    }
+
+    .arkiv-comments-menu a {
+      text-decoration: none;
+    }
+
+    .arkiv-comment-date {
+      display: inline-block;
+      margin-left: 6px;
+      opacity: 0.7;
+      font-size: 13px;
+    }
+
+    .comment-list {
+      margin: 0 0 24px;
+      padding-left: 18px;
+    }
+
+    .comment-list > li {
+      margin-bottom: 18px;
+    }
+
+    .comment-respond input[type="text"],
+    .comment-respond input[type="email"],
+    .comment-respond input[type="url"],
+    .comment-respond textarea {
+      width: 100%;
+      max-width: 100%;
+      border-radius: 8px;
+      border: 1px solid #d9d9d9;
+      padding: 10px 12px;
+    }
+
+    .comment-respond .form-submit input[type="submit"] {
+      border: none;
+      background: #111;
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 999px;
+      cursor: pointer;
     }
   </style>
 
