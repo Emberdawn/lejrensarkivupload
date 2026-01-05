@@ -211,6 +211,11 @@ class Arkiv_Submission_Plugin {
       .mappe-knap__desc {
         font-size: 13px;
         color: #555;
+        max-width: 20ch;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 3;
+        overflow: hidden;
       }
     </style>
     <?php
