@@ -191,6 +191,7 @@ class Arkiv_Submission_Plugin {
       }
 
       .mappe-knap {
+        position: relative;
         display: flex;
         gap: 12px;
         align-items: center;
@@ -216,14 +217,13 @@ class Arkiv_Submission_Plugin {
       }
 
       .mappe-knap__image-wrap {
-        position: relative;
         display: inline-flex;
       }
 
       .mappe-knap__tooltip {
         position: absolute;
-        left: 50%;
-        bottom: calc(100% + 8px);
+        left: calc(100% + 8px);
+        top: 50%;
         transform: translateX(-50%);
         background: rgba(17, 17, 17, 0.9);
         color: #fff;
