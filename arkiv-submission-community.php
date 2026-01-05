@@ -23,6 +23,7 @@ class Arkiv_Submission_Plugin {
     add_action('add_meta_boxes', [$this, 'add_suggested_folder_metabox']);
     add_action('admin_menu', [$this, 'register_settings_page']);
     add_action('admin_init', [$this, 'register_settings']);
+    add_action('wp_head', [$this, 'output_mappe_knapper_styles']);
   }
 
   public function render_shortcode($atts) {
@@ -134,6 +135,33 @@ class Arkiv_Submission_Plugin {
 
     echo '</div>';
     return ob_get_clean();
+  }
+
+  public function output_mappe_knapper_styles() {
+    ?>
+    <style>
+      .mappe-knapper {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+
+      .mappe-knap {
+        padding: 8px 14px;
+        background: #f2f2f2;
+        border-radius: 20px;
+        text-decoration: none;
+        color: #333;
+        font-size: 14px;
+        transition: background 0.2s ease;
+      }
+
+      .mappe-knap:hover {
+        background: #ddd;
+      }
+    </style>
+    <?php
   }
 
   public function register_settings_page() {
