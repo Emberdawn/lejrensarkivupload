@@ -14,10 +14,14 @@ class Arkiv_Submission_Plugin {
   const CPT = 'arkiv';
   const TAX = 'mappe'; // <-- ret hvis din taxonomy slug er anderledes
   const META_SUGGESTED_FOLDER = '_arkiv_suggested_folder';
+  const META_MAPPE_IMAGE_ID = '_arkiv_mappe_image_id';
+  const META_MAPPE_DESCRIPTION = '_arkiv_mappe_description';
   const OPTION_MAPPE_KNAPPER_ENABLED = 'arkiv_mappe_knapper_enabled';
   const OPTION_CPT_SLUG = 'arkiv_cpt_slug';
   const OPTION_TAX_SLUG = 'arkiv_tax_slug';
   const OPTION_BACK_PAGE_ID = 'arkiv_back_page_id';
+
+  private $mappe_settings_page_hook = '';
 
   public function __construct() {
     add_shortcode('arkiv_submit', [$this, 'render_shortcode']);
@@ -26,6 +30,8 @@ class Arkiv_Submission_Plugin {
     add_action('add_meta_boxes', [$this, 'add_suggested_folder_metabox']);
     add_action('admin_menu', [$this, 'register_settings_page']);
     add_action('admin_init', [$this, 'register_settings']);
+    add_action('admin_init', [$this, 'maybe_handle_mappe_settings_save']);
+    add_action('admin_enqueue_scripts', [$this, 'enqueue_mappe_admin_assets']);
     add_action('wp_head', [$this, 'output_mappe_knapper_styles']);
     add_filter('template_include', [$this, 'use_mappe_template']);
     add_action('pre_get_posts', [$this, 'restrict_mappe_query_to_arkiv']);
@@ -131,10 +137,25 @@ class Arkiv_Submission_Plugin {
         continue;
       }
 
+      $image_id = (int) get_term_meta($term->term_id, self::META_MAPPE_IMAGE_ID, true);
+      $description = get_term_meta($term->term_id, self::META_MAPPE_DESCRIPTION, true);
+      $description = is_string($description) ? trim($description) : '';
+
+      $image_html = '';
+      if ($image_id) {
+        $image_html = wp_get_attachment_image($image_id, 'medium', false, [
+          'class' => 'mappe-knap__image',
+          'alt' => $term->name,
+          'loading' => 'lazy',
+        ]);
+      }
+
       printf(
-        '<a class="mappe-knap" href="%s">%s</a>',
+        '<a class="mappe-knap" href="%s">%s<span class="mappe-knap__text"><span class="mappe-knap__title">%s</span>%s</span></a>',
         esc_url($url),
-        esc_html($term->name)
+        $image_html,
+        esc_html($term->name),
+        $description !== '' ? '<span class="mappe-knap__desc">' . esc_html($description) . '</span>' : ''
       );
     }
 
@@ -153,9 +174,12 @@ class Arkiv_Submission_Plugin {
       }
 
       .mappe-knap {
-        padding: 8px 14px;
-        background: #f2f2f2;
-        border-radius: 20px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        padding: 10px 14px;
+        background: #f7f7f7;
+        border-radius: 16px;
         text-decoration: none;
         color: #333;
         font-size: 14px;
@@ -164,6 +188,29 @@ class Arkiv_Submission_Plugin {
 
       .mappe-knap:hover {
         background: #ddd;
+      }
+
+      .mappe-knap__image {
+        width: 64px;
+        height: 64px;
+        object-fit: cover;
+        border-radius: 12px;
+        flex-shrink: 0;
+      }
+
+      .mappe-knap__text {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .mappe-knap__title {
+        font-weight: 600;
+      }
+
+      .mappe-knap__desc {
+        font-size: 13px;
+        color: #555;
       }
     </style>
     <?php
@@ -178,6 +225,15 @@ class Arkiv_Submission_Plugin {
       [$this, 'render_settings_page'],
       'dashicons-archive',
       80
+    );
+
+    $this->mappe_settings_page_hook = add_submenu_page(
+      'arkiv-submission-settings',
+      'Mappe knapper',
+      'Mappe knapper',
+      'manage_options',
+      'arkiv-mappe-settings',
+      [$this, 'render_mappe_settings_page']
     );
   }
 
@@ -293,6 +349,157 @@ class Arkiv_Submission_Plugin {
       </form>
     </div>
     <?php
+  }
+
+  public function render_mappe_settings_page() {
+    if (!current_user_can('manage_options')) {
+      return;
+    }
+
+    $terms = get_terms([
+      'taxonomy' => $this->get_taxonomy_slug(),
+      'hide_empty' => false,
+    ]);
+    ?>
+    <div class="wrap">
+      <h1>Mappe knapper</h1>
+      <p>Tilføj billede og beskrivelse til mapperne, som vises i [mappe_knapper].</p>
+      <form method="post" action="">
+        <?php wp_nonce_field('arkiv_mappe_settings_save', 'arkiv_mappe_settings_nonce'); ?>
+        <input type="hidden" name="arkiv_mappe_settings_submit" value="1">
+        <table class="widefat striped">
+          <thead>
+            <tr>
+              <th scope="col">Mappe</th>
+              <th scope="col">Billede</th>
+              <th scope="col">Beskrivelse</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php if (!is_wp_error($terms) && !empty($terms)) : ?>
+              <?php foreach ($terms as $term) : ?>
+                <?php
+                $image_id = (int) get_term_meta($term->term_id, self::META_MAPPE_IMAGE_ID, true);
+                $description = get_term_meta($term->term_id, self::META_MAPPE_DESCRIPTION, true);
+                $description = is_string($description) ? $description : '';
+                $image_url = $image_id ? wp_get_attachment_image_url($image_id, 'medium') : '';
+                ?>
+                <tr>
+                  <td>
+                    <strong><?php echo esc_html($term->name); ?></strong>
+                    <input type="hidden" name="mappe_term_ids[]" value="<?php echo (int) $term->term_id; ?>">
+                  </td>
+                  <td>
+                    <div class="arkiv-mappe-image">
+                      <img src="<?php echo esc_url($image_url); ?>" alt="" style="<?php echo $image_url ? '' : 'display:none;'; ?>max-width:120px;height:auto;border-radius:8px;">
+                      <input type="hidden" class="mappe-image-id" name="mappe_image_id[<?php echo (int) $term->term_id; ?>]" value="<?php echo $image_id ? (int) $image_id : ''; ?>">
+                      <div style="margin-top:8px;">
+                        <button type="button" class="button mappe-image-select">Vælg billede</button>
+                        <button type="button" class="button mappe-image-remove" <?php echo $image_url ? '' : 'style="display:none;"'; ?>>Fjern</button>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <textarea name="mappe_description[<?php echo (int) $term->term_id; ?>]" rows="3" class="large-text"><?php echo esc_textarea($description); ?></textarea>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            <?php else : ?>
+              <tr>
+                <td colspan="3">Ingen mapper fundet.</td>
+              </tr>
+            <?php endif; ?>
+          </tbody>
+        </table>
+        <?php submit_button('Gem ændringer'); ?>
+      </form>
+    </div>
+    <?php
+  }
+
+  public function maybe_handle_mappe_settings_save() {
+    if (empty($_POST['arkiv_mappe_settings_submit'])) {
+      return;
+    }
+
+    if (!current_user_can('manage_options')) {
+      return;
+    }
+
+    if (empty($_POST['arkiv_mappe_settings_nonce']) || !wp_verify_nonce($_POST['arkiv_mappe_settings_nonce'], 'arkiv_mappe_settings_save')) {
+      return;
+    }
+
+    $term_ids = isset($_POST['mappe_term_ids']) && is_array($_POST['mappe_term_ids']) ? array_map('absint', $_POST['mappe_term_ids']) : [];
+    $image_ids = isset($_POST['mappe_image_id']) && is_array($_POST['mappe_image_id']) ? $_POST['mappe_image_id'] : [];
+    $descriptions = isset($_POST['mappe_description']) && is_array($_POST['mappe_description']) ? $_POST['mappe_description'] : [];
+
+    foreach ($term_ids as $term_id) {
+      $image_id = isset($image_ids[$term_id]) ? absint($image_ids[$term_id]) : 0;
+      $description = isset($descriptions[$term_id]) ? sanitize_textarea_field($descriptions[$term_id]) : '';
+
+      if ($image_id) {
+        update_term_meta($term_id, self::META_MAPPE_IMAGE_ID, $image_id);
+      } else {
+        delete_term_meta($term_id, self::META_MAPPE_IMAGE_ID);
+      }
+
+      if ($description !== '') {
+        update_term_meta($term_id, self::META_MAPPE_DESCRIPTION, $description);
+      } else {
+        delete_term_meta($term_id, self::META_MAPPE_DESCRIPTION);
+      }
+    }
+  }
+
+  public function enqueue_mappe_admin_assets($hook) {
+    if (!$this->mappe_settings_page_hook || $hook !== $this->mappe_settings_page_hook) {
+      return;
+    }
+
+    wp_enqueue_media();
+    wp_add_inline_script('jquery', $this->get_mappe_admin_script());
+  }
+
+  private function get_mappe_admin_script() {
+    return <<<JS
+    jQuery(function ($) {
+      $('.mappe-image-select').on('click', function (e) {
+        e.preventDefault();
+        const container = $(this).closest('.arkiv-mappe-image');
+        const imageField = container.find('.mappe-image-id');
+        const imagePreview = container.find('img');
+        const removeButton = container.find('.mappe-image-remove');
+        const frame = wp.media({
+          title: 'Vælg billede',
+          button: { text: 'Brug billede' },
+          multiple: false
+        });
+
+        frame.on('select', function () {
+          const attachment = frame.state().get('selection').first().toJSON();
+          imageField.val(attachment.id);
+          if (attachment.sizes && attachment.sizes.medium) {
+            imagePreview.attr('src', attachment.sizes.medium.url);
+          } else {
+            imagePreview.attr('src', attachment.url);
+          }
+          imagePreview.show();
+          removeButton.show();
+        });
+
+        frame.open();
+      });
+
+      $('.mappe-image-remove').on('click', function (e) {
+        e.preventDefault();
+        const container = $(this).closest('.arkiv-mappe-image');
+        container.find('.mappe-image-id').val('');
+        container.find('img').hide().attr('src', '');
+        $(this).hide();
+      });
+    });
+JS;
   }
 
   public function maybe_handle_submit() {
