@@ -53,7 +53,7 @@ if (have_posts()) : while (have_posts()) : the_post();
               $full  = wp_get_attachment_image_url($att_id, 'full');
               if (!$thumb || !$full) continue;
               ?>
-              <a class="arkiv-tile" href="<?php echo esc_url($full); ?>" target="_blank" rel="noopener">
+              <a class="arkiv-tile arkiv-lightbox-trigger" href="<?php echo esc_url($full); ?>">
                 <?php echo $thumb; ?>
               </a>
             <?php endforeach; ?>
@@ -71,6 +71,11 @@ if (have_posts()) : while (have_posts()) : the_post();
         </a>
       </footer>
 
+    </div>
+
+    <div class="arkiv-lightbox" id="arkivLightbox">
+      <span class="arkiv-lightbox-close" aria-label="Luk">&times;</span>
+      <img src="" alt="">
     </div>
   </main>
 
@@ -106,9 +111,81 @@ if (have_posts()) : while (have_posts()) : the_post();
       display: inline-flex; padding: 10px 14px; border-radius: 999px;
       background: #f2f2f2; text-decoration: none;
     }
+
+    /* ===== Arkiv Lightbox ===== */
+    .arkiv-lightbox {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+
+    .arkiv-lightbox.active {
+      display: flex;
+    }
+
+    .arkiv-lightbox img {
+      max-width: 92vw;
+      max-height: 92vh;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    }
+
+    .arkiv-lightbox-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      font-size: 32px;
+      color: #fff;
+      cursor: pointer;
+      line-height: 1;
+    }
   </style>
 
   <?php
 endwhile; endif;
 
+?>
+<script>
+(function () {
+  const lightbox = document.getElementById('arkivLightbox');
+  if (!lightbox) return;
+
+  const img = lightbox.querySelector('img');
+  const closeBtn = lightbox.querySelector('.arkiv-lightbox-close');
+
+  document.querySelectorAll('.arkiv-lightbox-trigger').forEach(link => {
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      img.src = this.getAttribute('href');
+      lightbox.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    });
+  });
+
+  function closeLightbox() {
+    lightbox.classList.remove('active');
+    img.src = '';
+    document.body.style.overflow = '';
+  }
+
+  closeBtn.addEventListener('click', closeLightbox);
+
+  lightbox.addEventListener('click', function (e) {
+    if (e.target === lightbox) {
+      closeLightbox();
+    }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      closeLightbox();
+    }
+  });
+})();
+</script>
+<?php
 get_footer();
