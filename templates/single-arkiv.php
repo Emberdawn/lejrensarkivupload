@@ -33,6 +33,19 @@ if (have_posts()) : while (have_posts()) : the_post();
         <?php endif; ?>
       </header>
 
+      <?php
+      $back_page_id = (int) get_option('arkiv_back_page_id', 0);
+      $back_url = $back_page_id ? get_permalink($back_page_id) : '';
+      if (!$back_url) {
+        $back_url = home_url('/wordpress_D/arkiv/');
+      }
+      ?>
+      <div class="arkiv-back-wrap">
+        <a class="arkiv-back" href="<?php echo esc_url($back_url); ?>">
+          ← Tilbage til arkivet
+        </a>
+      </div>
+
       <article class="arkiv-content">
         <?php the_content(); ?>
       </article>
@@ -58,19 +71,6 @@ if (have_posts()) : while (have_posts()) : the_post();
           </p>
         </section>
       <?php endif; ?>
-
-      <?php
-      $back_page_id = (int) get_option('arkiv_back_page_id', 0);
-      $back_url = $back_page_id ? get_permalink($back_page_id) : '';
-      if (!$back_url) {
-        $back_url = home_url('/wordpress_D/arkiv/');
-      }
-      ?>
-      <footer class="arkiv-footer">
-        <a class="arkiv-back" href="<?php echo esc_url($back_url); ?>">
-          ← Tilbage til arkivet
-        </a>
-      </footer>
 
     </div>
 
@@ -110,7 +110,7 @@ if (have_posts()) : while (have_posts()) : the_post();
 
     .arkiv-note { opacity: .75; margin-top: 10px; }
 
-    .arkiv-footer { margin-top: 26px; padding-top: 16px; border-top: 1px solid #e5e5e5; }
+    .arkiv-back-wrap { margin: 18px 0 8px; }
     .arkiv-back {
       display: inline-flex; padding: 10px 14px; border-radius: 999px;
       background: #f2f2f2; text-decoration: none;
