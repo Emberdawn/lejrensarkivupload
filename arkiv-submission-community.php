@@ -14,11 +14,15 @@ class Arkiv_Submission_Plugin {
   const CPT = 'arkiv';
   const TAX = 'mappe'; // <-- ret hvis din taxonomy slug er anderledes
   const META_SUGGESTED_FOLDER = '_arkiv_suggested_folder';
+  const OPTION_MAPPE_KNAPPER_ENABLED = 'arkiv_mappe_knapper_enabled';
 
   public function __construct() {
     add_shortcode('arkiv_submit', [$this, 'render_shortcode']);
+    add_shortcode('mappe_knapper', [$this, 'render_mappe_knapper_shortcode']);
     add_action('init', [$this, 'maybe_handle_submit']);
     add_action('add_meta_boxes', [$this, 'add_suggested_folder_metabox']);
+    add_action('admin_menu', [$this, 'register_settings_page']);
+    add_action('admin_init', [$this, 'register_settings']);
   }
 
   public function render_shortcode($atts) {
@@ -90,6 +94,102 @@ class Arkiv_Submission_Plugin {
     </form>
     <?php
     return ob_get_clean();
+  }
+
+  public function render_mappe_knapper_shortcode($atts) {
+    $enabled = (int) get_option(self::OPTION_MAPPE_KNAPPER_ENABLED, 1);
+    if ($enabled !== 1) {
+      return '';
+    }
+
+    $atts = shortcode_atts([
+      'taxonomy' => 'mappe',
+      'show_empty' => false,
+    ], $atts);
+
+    $terms = get_terms([
+      'taxonomy' => $atts['taxonomy'],
+      'hide_empty' => !$atts['show_empty'],
+    ]);
+
+    if (is_wp_error($terms) || empty($terms)) {
+      return '';
+    }
+
+    ob_start();
+    echo '<div class="mappe-knapper">';
+
+    foreach ($terms as $term) {
+      $url = get_term_link($term);
+      if (is_wp_error($url)) {
+        continue;
+      }
+
+      printf(
+        '<a class="mappe-knap" href="%s">%s</a>',
+        esc_url($url),
+        esc_html($term->name)
+      );
+    }
+
+    echo '</div>';
+    return ob_get_clean();
+  }
+
+  public function register_settings_page() {
+    add_menu_page(
+      'Arkiv Submission',
+      'Arkiv Submission',
+      'manage_options',
+      'arkiv-submission-settings',
+      [$this, 'render_settings_page'],
+      'dashicons-archive',
+      80
+    );
+  }
+
+  public function register_settings() {
+    register_setting(
+      'arkiv_submission_settings',
+      self::OPTION_MAPPE_KNAPPER_ENABLED,
+      [
+        'type' => 'boolean',
+        'sanitize_callback' => [$this, 'sanitize_checkbox'],
+        'default' => 1,
+      ]
+    );
+  }
+
+  public function sanitize_checkbox($value) {
+    return !empty($value) ? 1 : 0;
+  }
+
+  public function render_settings_page() {
+    if (!current_user_can('manage_options')) {
+      return;
+    }
+
+    $enabled = (int) get_option(self::OPTION_MAPPE_KNAPPER_ENABLED, 1);
+    ?>
+    <div class="wrap">
+      <h1>Arkiv Submission</h1>
+      <form method="post" action="options.php">
+        <?php settings_fields('arkiv_submission_settings'); ?>
+        <table class="form-table" role="presentation">
+          <tr>
+            <th scope="row">Mappe knapper shortcode</th>
+            <td>
+              <label>
+                <input type="checkbox" name="<?php echo esc_attr(self::OPTION_MAPPE_KNAPPER_ENABLED); ?>" value="1" <?php checked(1, $enabled); ?>>
+                Aktivér [mappe_knapper] shortcode
+              </label>
+            </td>
+          </tr>
+        </table>
+        <?php submit_button(); ?>
+      </form>
+    </div>
+    <?php
   }
 
   public function maybe_handle_submit() {
