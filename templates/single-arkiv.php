@@ -87,17 +87,6 @@ if (have_posts()) : while (have_posts()) : the_post();
         ]);
         ?>
 
-        <?php if (comments_open()) : ?>
-          <div class="arkiv-comment-form">
-            <?php
-            comment_form([
-              'title_reply' => 'Skriv en kommentar',
-              'label_submit' => 'Send kommentar',
-            ]);
-            ?>
-          </div>
-        <?php endif; ?>
-
         <?php if (!empty($comment_items)) : ?>
           <div class="arkiv-comments-list">
             <h3>Tidligere kommentarer</h3>
@@ -121,6 +110,17 @@ if (have_posts()) : while (have_posts()) : the_post();
                 </li>
               <?php endforeach; ?>
             </ol>
+          </div>
+        <?php endif; ?>
+
+        <?php if (comments_open()) : ?>
+          <div class="arkiv-comment-form">
+            <?php
+            comment_form([
+              'title_reply' => 'Skriv en kommentar',
+              'label_submit' => 'Send kommentar',
+            ]);
+            ?>
           </div>
         <?php endif; ?>
       </section>
