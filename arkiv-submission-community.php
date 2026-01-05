@@ -35,6 +35,7 @@ class Arkiv_Submission_Plugin {
     add_action('wp_head', [$this, 'output_mappe_knapper_styles']);
     add_filter('template_include', [$this, 'use_mappe_template']);
     add_action('pre_get_posts', [$this, 'restrict_mappe_query_to_arkiv']);
+    add_action('pre_comment_on_post', [$this, 'block_anonymous_comments']);
   }
 
   public function render_shortcode($atts) {
@@ -226,6 +227,26 @@ class Arkiv_Submission_Plugin {
       }
     </style>
     <?php
+  }
+
+  public function block_anonymous_comments($comment_post_ID) {
+    if (is_user_logged_in()) {
+      return;
+    }
+
+    $post_type = get_post_type($comment_post_ID);
+    if ($post_type !== self::CPT) {
+      return;
+    }
+
+    wp_die(
+      'Du skal være logget ind for at kommentere.',
+      'Kommentar kræver login',
+      [
+        'response' => 403,
+        'back_link' => true,
+      ]
+    );
   }
 
   public function register_settings_page() {

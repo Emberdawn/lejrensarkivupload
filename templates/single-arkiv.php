@@ -115,12 +115,16 @@ if (have_posts()) : while (have_posts()) : the_post();
 
         <?php if (comments_open()) : ?>
           <div class="arkiv-comment-form">
-            <?php
-            comment_form([
-              'title_reply' => 'Skriv en kommentar',
-              'label_submit' => 'Send kommentar',
-            ]);
-            ?>
+            <?php if (is_user_logged_in()) : ?>
+              <?php
+              comment_form([
+                'title_reply' => 'Skriv en kommentar',
+                'label_submit' => 'Send kommentar',
+              ]);
+              ?>
+            <?php else : ?>
+              <p>Du skal være <a href="<?php echo esc_url(wp_login_url(get_permalink())); ?>">logget ind</a> for at kommentere.</p>
+            <?php endif; ?>
           </div>
         <?php endif; ?>
       </section>
