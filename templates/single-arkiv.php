@@ -48,12 +48,12 @@ if (have_posts()) : while (have_posts()) : the_post();
           <h2>Billeder</h2>
 
           <div class="arkiv-grid">
-            <?php foreach ($gallery_ids as $att_id) :
+            <?php foreach ($gallery_ids as $i => $att_id) :
               $thumb = wp_get_attachment_image($att_id, 'medium_large', false, ['class' => 'arkiv-img']);
               $full  = wp_get_attachment_image_url($att_id, 'full');
               if (!$thumb || !$full) continue;
               ?>
-              <a class="arkiv-tile arkiv-lightbox-trigger" href="<?php echo esc_url($full); ?>">
+              <a class="arkiv-tile arkiv-lightbox-trigger" href="<?php echo esc_url($full); ?>" data-index="<?php echo (int)$i; ?>">
                 <?php echo $thumb; ?>
               </a>
             <?php endforeach; ?>
@@ -73,10 +73,15 @@ if (have_posts()) : while (have_posts()) : the_post();
 
     </div>
 
-    <div class="arkiv-lightbox" id="arkivLightbox">
-      <span class="arkiv-lightbox-close" aria-label="Luk">&times;</span>
+    <!-- Arkiv lightbox start -->
+    <div class="arkiv-lightbox" id="arkivLightbox" aria-hidden="true">
+      <button class="arkiv-lightbox-close" type="button" aria-label="Luk">&times;</button>
+      <button class="arkiv-lightbox-nav prev" type="button" aria-label="Forrige">&#10094;</button>
       <img src="" alt="">
+      <button class="arkiv-lightbox-nav next" type="button" aria-label="Næste">&#10095;</button>
+      <div class="arkiv-lightbox-counter" aria-live="polite"></div>
     </div>
+    <!-- Arkiv lightbox end -->
   </main>
 
   <style>
@@ -121,6 +126,7 @@ if (have_posts()) : while (have_posts()) : the_post();
       align-items: center;
       justify-content: center;
       z-index: 9999;
+      touch-action: none;
     }
 
     .arkiv-lightbox.active {
@@ -132,6 +138,8 @@ if (have_posts()) : while (have_posts()) : the_post();
       max-height: 92vh;
       border-radius: 12px;
       box-shadow: 0 20px 60px rgba(0,0,0,.5);
+      cursor: zoom-in;
+      transition: transform 0.15s ease;
     }
 
     .arkiv-lightbox-close {
@@ -142,6 +150,54 @@ if (have_posts()) : while (have_posts()) : the_post();
       color: #fff;
       cursor: pointer;
       line-height: 1;
+      background: transparent;
+      border: none;
+    }
+
+    .arkiv-lightbox-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 48px;
+      color: #fff;
+      background: rgba(0,0,0,.35);
+      border: none;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+    }
+
+    .arkiv-lightbox-nav.prev { left: 20px; }
+    .arkiv-lightbox-nav.next { right: 20px; }
+
+    .arkiv-lightbox-counter {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #fff;
+      font-size: 14px;
+      background: rgba(0,0,0,.35);
+      padding: 6px 10px;
+      border-radius: 999px;
+    }
+
+    .arkiv-lightbox.is-single .arkiv-lightbox-nav,
+    .arkiv-lightbox.is-single .arkiv-lightbox-counter {
+      display: none;
+    }
+
+    .arkiv-lightbox.is-zoomed img {
+      cursor: grab;
+    }
+
+    .arkiv-lightbox.is-zoomed img:active {
+      cursor: grabbing;
     }
   </style>
 
@@ -156,22 +212,123 @@ endwhile; endif;
 
   const img = lightbox.querySelector('img');
   const closeBtn = lightbox.querySelector('.arkiv-lightbox-close');
+  const prevBtn = lightbox.querySelector('.arkiv-lightbox-nav.prev');
+  const nextBtn = lightbox.querySelector('.arkiv-lightbox-nav.next');
+  const counter = lightbox.querySelector('.arkiv-lightbox-counter');
 
-  document.querySelectorAll('.arkiv-lightbox-trigger').forEach(link => {
-    link.addEventListener('click', function (e) {
-      e.preventDefault();
-      img.src = this.getAttribute('href');
-      lightbox.classList.add('active');
-      document.body.style.overflow = 'hidden';
-    });
-  });
+  const triggers = Array.from(document.querySelectorAll('.arkiv-lightbox-trigger'));
+  const imageUrls = triggers.map(link => link.getAttribute('href'));
+  const total = imageUrls.length;
+
+  let currentIndex = 0;
+  let isZoomed = false;
+  let isDragging = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let translateX = 0;
+  let translateY = 0;
+  let swipeStartX = 0;
+  let swipeStartY = 0;
+  let navLocked = false;
+
+  function preload(url) {
+    if (!url) return;
+    const im = new Image();
+    im.src = url;
+  }
+
+  function applyTransform() {
+    const scale = isZoomed ? 2.5 : 1;
+    img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+  }
+
+  function resetZoom() {
+    isZoomed = false;
+    isDragging = false;
+    translateX = 0;
+    translateY = 0;
+    lightbox.classList.remove('is-zoomed');
+    applyTransform();
+  }
+
+  function openLightbox(index) {
+    currentIndex = index;
+    lightbox.classList.add('active');
+    lightbox.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    show(currentIndex);
+  }
 
   function closeLightbox() {
     lightbox.classList.remove('active');
+    lightbox.setAttribute('aria-hidden', 'true');
     img.src = '';
     document.body.style.overflow = '';
+    resetZoom();
   }
 
+  function lockNav() {
+    navLocked = true;
+    setTimeout(() => {
+      navLocked = false;
+    }, 150);
+  }
+
+  function wrapIndex(index) {
+    if (index < 0) return total - 1;
+    if (index >= total) return 0;
+    return index;
+  }
+
+  function show(index) {
+    if (!total || navLocked) return;
+    lockNav();
+    const nextIndex = wrapIndex(index);
+    currentIndex = nextIndex;
+    const url = imageUrls[currentIndex];
+    img.onerror = () => {
+      if (total <= 1) {
+        closeLightbox();
+        return;
+      }
+      show(currentIndex + 1);
+    };
+    img.src = url;
+    counter.textContent = `${currentIndex + 1} / ${total}`;
+    preload(imageUrls[wrapIndex(currentIndex + 1)]);
+    preload(imageUrls[wrapIndex(currentIndex - 1)]);
+    resetZoom();
+  }
+
+  function toggleZoom() {
+    if (!lightbox.classList.contains('active')) return;
+    isZoomed = !isZoomed;
+    lightbox.classList.toggle('is-zoomed', isZoomed);
+    if (!isZoomed) {
+      translateX = 0;
+      translateY = 0;
+    }
+    applyTransform();
+  }
+
+  triggers.forEach(link => {
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      const index = parseInt(this.dataset.index, 10) || 0;
+      openLightbox(index);
+    });
+  });
+
+  function goPrev() {
+    show(currentIndex - 1);
+  }
+
+  function goNext() {
+    show(currentIndex + 1);
+  }
+
+  prevBtn.addEventListener('click', goPrev);
+  nextBtn.addEventListener('click', goNext);
   closeBtn.addEventListener('click', closeLightbox);
 
   lightbox.addEventListener('click', function (e) {
@@ -180,11 +337,92 @@ endwhile; endif;
     }
   });
 
+  img.addEventListener('click', function (e) {
+    e.stopPropagation();
+    toggleZoom();
+  });
+
+  img.addEventListener('dblclick', function (e) {
+    e.preventDefault();
+    toggleZoom();
+  });
+
+  img.addEventListener('mousedown', function (e) {
+    if (!isZoomed) return;
+    isDragging = true;
+    dragStartX = e.clientX - translateX;
+    dragStartY = e.clientY - translateY;
+  });
+
+  document.addEventListener('mousemove', function (e) {
+    if (!isZoomed || !isDragging) return;
+    translateX = e.clientX - dragStartX;
+    translateY = e.clientY - dragStartY;
+    applyTransform();
+  });
+
+  document.addEventListener('mouseup', function () {
+    isDragging = false;
+  });
+
+  img.addEventListener('touchstart', function (e) {
+    if (!isZoomed) return;
+    if (e.touches.length !== 1) return;
+    isDragging = true;
+    dragStartX = e.touches[0].clientX - translateX;
+    dragStartY = e.touches[0].clientY - translateY;
+  }, { passive: true });
+
+  img.addEventListener('touchmove', function (e) {
+    if (!isZoomed || !isDragging) return;
+    if (e.touches.length !== 1) return;
+    translateX = e.touches[0].clientX - dragStartX;
+    translateY = e.touches[0].clientY - dragStartY;
+    applyTransform();
+    e.preventDefault();
+  }, { passive: false });
+
+  img.addEventListener('touchend', function () {
+    isDragging = false;
+  });
+
+  lightbox.addEventListener('touchstart', function (e) {
+    if (isZoomed) return;
+    if (e.touches.length !== 1) return;
+    swipeStartX = e.touches[0].clientX;
+    swipeStartY = e.touches[0].clientY;
+  }, { passive: true });
+
+  lightbox.addEventListener('touchend', function (e) {
+    if (isZoomed) return;
+    if (!swipeStartX && !swipeStartY) return;
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - swipeStartX;
+    const deltaY = touch.clientY - swipeStartY;
+    swipeStartX = 0;
+    swipeStartY = 0;
+    if (Math.abs(deltaX) < 50 || Math.abs(deltaX) < Math.abs(deltaY)) return;
+    if (deltaX < 0) {
+      goNext();
+    } else {
+      goPrev();
+    }
+  });
+
   document.addEventListener('keydown', function (e) {
+    if (!lightbox.classList.contains('active')) return;
     if (e.key === 'Escape') {
       closeLightbox();
     }
+    if (e.key === 'ArrowLeft') {
+      goPrev();
+    }
+    if (e.key === 'ArrowRight') {
+      goNext();
+    }
   });
+
+  lightbox.classList.toggle('is-single', total <= 1);
 })();
 </script>
 <?php
