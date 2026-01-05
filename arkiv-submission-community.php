@@ -241,7 +241,8 @@ class Arkiv_Submission_Plugin {
         z-index: 10;
       }
 
-      .mappe-knap__image-wrap:hover .mappe-knap__tooltip {
+      .mappe-knap__image-wrap:hover .mappe-knap__tooltip,
+      .mappe-knap:hover .mappe-knap__tooltip {
         opacity: 1;
         visibility: visible;
       }
