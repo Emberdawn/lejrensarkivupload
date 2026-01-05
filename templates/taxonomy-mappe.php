@@ -15,7 +15,16 @@ get_header();
     @media (max-width: 640px)  { .masonry { column-count: 1; } }
     .tile { break-inside: avoid; margin: 0 0 16px; display: block; text-decoration: none; color: inherit; }
     .tile img { width: 100%; height: auto; display: block; border-radius: 12px; }
-    .tile h3 { margin: 8px 0 0; font-size: 16px; }
+    .tile h3 {
+      margin: 8px 0 0;
+      font-size: 16px;
+      line-height: 1.4;
+      max-height: calc(1.4em * 3);
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+    }
   </style>
 
   <?php
