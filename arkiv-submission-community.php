@@ -99,6 +99,13 @@ class Arkiv_Submission_Plugin {
       </p>
 
       <p>
+        <label>
+          <input type="checkbox" name="arkiv_comments_enabled" value="1" checked>
+          <strong>Kan kommenteres</strong>
+        </label>
+      </p>
+
+      <p>
         <button type="submit" name="arkiv_submit_btn" value="1" style="padding:10px 14px;">
           Send til godkendelse
         </button>
@@ -523,6 +530,7 @@ JS;
     $content = isset($_POST['arkiv_content']) ? wp_kses_post($_POST['arkiv_content']) : '';
     $term_id = isset($_POST['arkiv_folder_term']) ? (int) $_POST['arkiv_folder_term'] : 0;
     $suggest = isset($_POST['arkiv_suggested_folder']) ? sanitize_text_field($_POST['arkiv_suggested_folder']) : '';
+    $comments_enabled = !empty($_POST['arkiv_comments_enabled']);
 
     if (trim($title) === '' || trim(wp_strip_all_tags($content)) === '') {
       $this->redirect_with('err');
@@ -533,6 +541,7 @@ JS;
       'post_type' => $this->get_post_type_slug(),
       'post_title' => $title,
       'post_content' => $content,
+      'comment_status' => $comments_enabled ? 'open' : 'closed',
       'post_status' => 'pending',
       'post_author' => get_current_user_id(),
     ], true);
