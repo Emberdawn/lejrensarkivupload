@@ -155,7 +155,16 @@ class Arkiv_Submission_Plugin {
           'class' => 'mappe-knap__image',
           'alt' => $term->name,
           'loading' => 'lazy',
+          'title' => $description !== '' ? $description : null,
         ]);
+
+        if ($description !== '') {
+          $image_html = sprintf(
+            '<span class="mappe-knap__image-wrap">%s<span class="mappe-knap__tooltip">%s</span></span>',
+            $image_html,
+            esc_html($description)
+          );
+        }
       }
 
       printf(
@@ -204,6 +213,37 @@ class Arkiv_Submission_Plugin {
         object-fit: cover;
         border-radius: 12px;
         flex-shrink: 0;
+      }
+
+      .mappe-knap__image-wrap {
+        position: relative;
+        display: inline-flex;
+      }
+
+      .mappe-knap__tooltip {
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + 8px);
+        transform: translateX(-50%);
+        background: rgba(17, 17, 17, 0.9);
+        color: #fff;
+        padding: 6px 10px;
+        border-radius: 8px;
+        font-size: 12px;
+        line-height: 1.3;
+        max-width: 220px;
+        white-space: normal;
+        text-align: center;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+        z-index: 10;
+      }
+
+      .mappe-knap__image-wrap:hover .mappe-knap__tooltip {
+        opacity: 1;
+        visibility: visible;
       }
 
       .mappe-knap__text {
