@@ -24,6 +24,7 @@ class Arkiv_Submission_Plugin {
     add_action('admin_menu', [$this, 'register_settings_page']);
     add_action('admin_init', [$this, 'register_settings']);
     add_action('wp_head', [$this, 'output_mappe_knapper_styles']);
+    add_filter('template_include', [$this, 'use_mappe_template']);
   }
 
   public function render_shortcode($atts) {
@@ -365,6 +366,17 @@ class Arkiv_Submission_Plugin {
 
     wp_safe_redirect($url);
     exit;
+  }
+
+  public function use_mappe_template($template) {
+    if (is_tax('mappe')) {
+      $plugin_template = plugin_dir_path(__FILE__) . 'templates/taxonomy-mappe.php';
+      if (file_exists($plugin_template)) {
+        return $plugin_template;
+      }
+    }
+
+    return $template;
   }
 }
 
