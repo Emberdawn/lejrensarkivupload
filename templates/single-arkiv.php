@@ -33,12 +33,6 @@ if (have_posts()) : while (have_posts()) : the_post();
         <?php endif; ?>
       </header>
 
-      <?php if (has_post_thumbnail()) : ?>
-        <figure class="arkiv-hero">
-          <?php the_post_thumbnail('large'); ?>
-        </figure>
-      <?php endif; ?>
-
       <article class="arkiv-content">
         <?php the_content(); ?>
       </article>
@@ -94,8 +88,6 @@ if (have_posts()) : while (have_posts()) : the_post();
       display: inline-flex; padding: 6px 12px; border-radius: 999px;
       background: #f2f2f2; text-decoration: none;
     }
-
-    .arkiv-hero img { width: 100%; height: auto; border-radius: 14px; display:block; }
 
     .arkiv-content { margin-top: 18px; font-size: 16px; line-height: 1.7; }
 
