@@ -59,8 +59,15 @@ if (have_posts()) : while (have_posts()) : the_post();
         </section>
       <?php endif; ?>
 
+      <?php
+      $back_page_id = (int) get_option('arkiv_back_page_id', 0);
+      $back_url = $back_page_id ? get_permalink($back_page_id) : '';
+      if (!$back_url) {
+        $back_url = home_url('/wordpress_D/arkiv/');
+      }
+      ?>
       <footer class="arkiv-footer">
-        <a class="arkiv-back" href="<?php echo esc_url(home_url('/wordpress_D/arkiv/')); ?>">
+        <a class="arkiv-back" href="<?php echo esc_url($back_url); ?>">
           ← Tilbage til arkivet
         </a>
       </footer>

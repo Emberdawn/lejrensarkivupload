@@ -17,6 +17,7 @@ class Arkiv_Submission_Plugin {
   const OPTION_MAPPE_KNAPPER_ENABLED = 'arkiv_mappe_knapper_enabled';
   const OPTION_CPT_SLUG = 'arkiv_cpt_slug';
   const OPTION_TAX_SLUG = 'arkiv_tax_slug';
+  const OPTION_BACK_PAGE_ID = 'arkiv_back_page_id';
 
   public function __construct() {
     add_shortcode('arkiv_submit', [$this, 'render_shortcode']);
@@ -210,6 +211,16 @@ class Arkiv_Submission_Plugin {
         'default' => self::TAX,
       ]
     );
+
+    register_setting(
+      'arkiv_submission_settings',
+      self::OPTION_BACK_PAGE_ID,
+      [
+        'type' => 'integer',
+        'sanitize_callback' => 'absint',
+        'default' => 0,
+      ]
+    );
   }
 
   public function sanitize_checkbox($value) {
@@ -234,6 +245,7 @@ class Arkiv_Submission_Plugin {
     $enabled = (int) get_option(self::OPTION_MAPPE_KNAPPER_ENABLED, 1);
     $cpt_slug = $this->get_post_type_slug();
     $tax_slug = $this->get_taxonomy_slug();
+    $back_page_id = (int) get_option(self::OPTION_BACK_PAGE_ID, 0);
     ?>
     <div class="wrap">
       <h1>Arkiv Submission</h1>
@@ -261,6 +273,19 @@ class Arkiv_Submission_Plugin {
                 <input type="checkbox" name="<?php echo esc_attr(self::OPTION_MAPPE_KNAPPER_ENABLED); ?>" value="1" <?php checked(1, $enabled); ?>>
                 Aktivér [mappe_knapper] shortcode
               </label>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Tilbage-link side</th>
+            <td>
+              <?php
+              wp_dropdown_pages([
+                'name' => self::OPTION_BACK_PAGE_ID,
+                'selected' => $back_page_id,
+                'show_option_none' => '— Vælg side —',
+              ]);
+              ?>
+              <p class="description">Vælg siden som "Tilbage til arkivet" skal pege på.</p>
             </td>
           </tr>
         </table>
