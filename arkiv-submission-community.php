@@ -25,6 +25,7 @@ class Arkiv_Submission_Plugin {
     add_action('admin_init', [$this, 'register_settings']);
     add_action('wp_head', [$this, 'output_mappe_knapper_styles']);
     add_filter('template_include', [$this, 'use_mappe_template']);
+    add_action('pre_get_posts', [$this, 'restrict_mappe_query_to_arkiv']);
   }
 
   public function render_shortcode($atts) {
@@ -377,6 +378,12 @@ class Arkiv_Submission_Plugin {
     }
 
     return $template;
+  }
+
+  public function restrict_mappe_query_to_arkiv($query) {
+    if (!is_admin() && $query->is_main_query() && $query->is_tax('mappe')) {
+      $query->set('post_type', ['arkiv']);
+    }
   }
 }
 
