@@ -6,10 +6,8 @@ if (have_posts()) : while (have_posts()) : the_post();
 
   $post_id = get_the_ID();
 
-  $tax_slug = sanitize_key(get_option('arkiv_tax_slug', 'mappe'));
-
   // Taxonomy terms (Mappe)
-  $terms = get_the_terms($post_id, $tax_slug);
+  $terms = get_the_terms($post_id, 'mappe');
 
   // Galleri IDs (som du gemmer i dit plugin)
   $gallery_ids = get_post_meta($post_id, '_arkiv_gallery_ids', true);
@@ -34,7 +32,7 @@ if (have_posts()) : while (have_posts()) : the_post();
         </a>
         <?php if (!empty($terms) && !is_wp_error($terms)) : ?>
           <?php $primary_term = $terms[0]; ?>
-          <a class="arkiv-back" href="<?php echo esc_url(get_term_link($primary_term, $tax_slug)); ?>">
+          <a class="arkiv-back" href="<?php echo esc_url(get_term_link($primary_term)); ?>">
             ← Tilbage til <?php echo esc_html($primary_term->name); ?>
           </a>
         <?php endif; ?>
@@ -93,20 +91,13 @@ if (have_posts()) : while (have_posts()) : the_post();
                 <li id="comment-<?php echo esc_attr($comment_item->comment_ID); ?>">
                   <article class="arkiv-comment">
                     <header>
-                      <div class="arkiv-comment-meta">
-                        <strong class="arkiv-comment-author">
-                          <?php echo esc_html(get_comment_author($comment_item)); ?>
-                        </strong>
-                        <time class="arkiv-comment-date" datetime="<?php echo esc_attr(get_comment_date('c', $comment_item)); ?>">
-                          <?php echo esc_html(get_comment_date('d/m/Y', $comment_item)); ?>
-                          <?php echo esc_html(get_comment_time('H:i', $comment_item)); ?>
-                        </time>
-                      </div>
-                      <?php if (current_user_can('administrator')) : ?>
-                        <a class="arkiv-comment-delete" href="<?php echo esc_url(get_delete_comment_link($comment_item)); ?>" data-author="<?php echo esc_attr(get_comment_author($comment_item)); ?>" data-comment="<?php echo esc_attr(wp_strip_all_tags($comment_item->comment_content)); ?>">
-                          Slet
-                        </a>
-                      <?php endif; ?>
+                      <strong class="arkiv-comment-author">
+                        <?php echo esc_html(get_comment_author($comment_item)); ?>
+                      </strong>
+                      <time class="arkiv-comment-date" datetime="<?php echo esc_attr(get_comment_date('c', $comment_item)); ?>">
+                        <?php echo esc_html(get_comment_date('d/m/Y', $comment_item)); ?>
+                        <?php echo esc_html(get_comment_time('H:i', $comment_item)); ?>
+                      </time>
                     </header>
                     <div class="arkiv-comment-body">
                       <?php echo wp_kses_post(wpautop($comment_item->comment_content)); ?>
@@ -297,32 +288,8 @@ if (have_posts()) : while (have_posts()) : the_post();
       display: flex;
       flex-wrap: wrap;
       gap: 8px 12px;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 6px;
-    }
-
-    .arkiv-comment-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px 12px;
       align-items: baseline;
-    }
-
-    .arkiv-comment-delete {
-      border: none;
-      background: #d63638;
-      color: #fff;
-      padding: 6px 12px;
-      border-radius: 999px;
-      font-size: 12px;
-      text-decoration: none;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-
-    .arkiv-comment-delete:hover {
-      background: #b32d2e;
+      margin-bottom: 6px;
     }
 
     .arkiv-comment-date {
@@ -574,22 +541,6 @@ endwhile; endif;
   });
 
   lightbox.classList.toggle('is-single', total <= 1);
-})();
-
-(function () {
-  const deleteButtons = document.querySelectorAll('.arkiv-comment-delete');
-  if (!deleteButtons.length) return;
-
-  deleteButtons.forEach(button => {
-    button.addEventListener('click', function (event) {
-      const author = this.dataset.author || '';
-      const commentText = this.dataset.comment || '';
-      const message = `Er du sikker på du vil slette kommentaren af: ${author} med texten ${commentText}`;
-      if (!window.confirm(message)) {
-        event.preventDefault();
-      }
-    });
-  });
 })();
 </script>
 <?php
