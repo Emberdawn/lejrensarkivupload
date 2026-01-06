@@ -780,15 +780,37 @@ JS;
       delete_post_meta($post_id, '_arkiv_gallery_ids');
     }
 
-    $thumbnail_id = get_post_thumbnail_id($post_id);
-    if ($thumbnail_id && !in_array((int) $thumbnail_id, $gallery_ids, true)) {
-      if (!empty($gallery_ids)) {
-        set_post_thumbnail($post_id, $gallery_ids[0]);
-      } else {
+    if (array_key_exists('arkiv_featured_image', $_POST)) {
+      $featured_input = sanitize_text_field(wp_unslash($_POST['arkiv_featured_image']));
+      if ($featured_input === '0') {
         delete_post_thumbnail($post_id);
+      } elseif ($featured_input === 'auto' || $featured_input === '') {
+        if (!empty($gallery_ids)) {
+          set_post_thumbnail($post_id, $gallery_ids[0]);
+        } else {
+          delete_post_thumbnail($post_id);
+        }
+      } else {
+        $featured_id = absint($featured_input);
+        if ($featured_id && in_array((int) $featured_id, $gallery_ids, true)) {
+          set_post_thumbnail($post_id, $featured_id);
+        } elseif (!empty($gallery_ids)) {
+          set_post_thumbnail($post_id, $gallery_ids[0]);
+        } else {
+          delete_post_thumbnail($post_id);
+        }
       }
-    } elseif (!$thumbnail_id && !empty($gallery_ids)) {
-      set_post_thumbnail($post_id, $gallery_ids[0]);
+    } else {
+      $thumbnail_id = get_post_thumbnail_id($post_id);
+      if ($thumbnail_id && !in_array((int) $thumbnail_id, $gallery_ids, true)) {
+        if (!empty($gallery_ids)) {
+          set_post_thumbnail($post_id, $gallery_ids[0]);
+        } else {
+          delete_post_thumbnail($post_id);
+        }
+      } elseif (!$thumbnail_id && !empty($gallery_ids)) {
+        set_post_thumbnail($post_id, $gallery_ids[0]);
+      }
     }
 
     wp_safe_redirect(get_permalink($post_id));

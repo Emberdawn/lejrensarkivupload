@@ -20,6 +20,8 @@ if (have_posts()) : while (have_posts()) : the_post();
   if (!is_array($gallery_ids)) {
     $gallery_ids = [];
   }
+  $thumbnail_id = get_post_thumbnail_id($post_id);
+  $featured_selected = ($thumbnail_id && in_array((int) $thumbnail_id, $gallery_ids, true)) ? (int) $thumbnail_id : 'auto';
   ?>
 
   <main class="arkiv-single">
@@ -87,6 +89,28 @@ if (have_posts()) : while (have_posts()) : the_post();
               <label class="arkiv-edit-label" for="arkivEditImages">Upload flere billeder</label>
               <input id="arkivEditImages" type="file" name="arkiv_images[]" accept="image/*" multiple>
               <div class="arkiv-edit-preview" id="arkivEditPreview"></div>
+            </div>
+
+            <div class="arkiv-edit-featured">
+              <label class="arkiv-edit-label" for="arkivFeaturedImage">Forsidebillede</label>
+              <?php if (!empty($gallery_ids)) : ?>
+                <select id="arkivFeaturedImage" name="arkiv_featured_image">
+                  <option value="auto" <?php selected($featured_selected, 'auto'); ?>>Automatisk (første billede)</option>
+                  <option value="0">Ingen forsidebillede</option>
+                  <?php foreach ($gallery_ids as $att_id) :
+                    $label = get_the_title($att_id);
+                    if ($label === '') {
+                      $label = 'Billede #' . (int) $att_id;
+                    }
+                    ?>
+                    <option value="<?php echo (int) $att_id; ?>" <?php selected($featured_selected, (int) $att_id); ?>>
+                      <?php echo esc_html($label); ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              <?php else : ?>
+                <p class="arkiv-edit-empty">Tilføj billeder for at vælge forsidebillede.</p>
+              <?php endif; ?>
             </div>
 
             <div class="arkiv-edit-actions">
@@ -292,6 +316,20 @@ if (have_posts()) : while (have_posts()) : the_post();
 
     .arkiv-edit-upload {
       margin-top: 18px;
+    }
+
+    .arkiv-edit-featured {
+      margin-top: 18px;
+    }
+
+    .arkiv-edit-featured select {
+      width: 100%;
+      max-width: 100%;
+      border-radius: 12px;
+      border: 1px solid #d9d9d9;
+      padding: 10px 12px;
+      font-size: 15px;
+      background: #fff;
     }
 
     .arkiv-edit-preview {
