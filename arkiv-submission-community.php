@@ -33,7 +33,7 @@ class Arkiv_Submission_Plugin {
     add_action('admin_init', [$this, 'maybe_handle_mappe_settings_save']);
     add_action('admin_enqueue_scripts', [$this, 'enqueue_mappe_admin_assets']);
     add_action('wp_head', [$this, 'output_mappe_knapper_styles']);
-    add_filter('template_include', [$this, 'use_mappe_template']);
+    add_filter('template_include', [$this, 'use_mappe_template'], 99);
     add_action('pre_get_posts', [$this, 'restrict_mappe_query_to_arkiv']);
     add_action('pre_comment_on_post', [$this, 'block_anonymous_comments']);
   }

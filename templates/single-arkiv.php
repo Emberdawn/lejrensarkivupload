@@ -6,8 +6,10 @@ if (have_posts()) : while (have_posts()) : the_post();
 
   $post_id = get_the_ID();
 
+  $tax_slug = sanitize_key(get_option('arkiv_tax_slug', 'mappe'));
+
   // Taxonomy terms (Mappe)
-  $terms = get_the_terms($post_id, 'mappe');
+  $terms = get_the_terms($post_id, $tax_slug);
 
   // Galleri IDs (som du gemmer i dit plugin)
   $gallery_ids = get_post_meta($post_id, '_arkiv_gallery_ids', true);
@@ -32,7 +34,7 @@ if (have_posts()) : while (have_posts()) : the_post();
         </a>
         <?php if (!empty($terms) && !is_wp_error($terms)) : ?>
           <?php $primary_term = $terms[0]; ?>
-          <a class="arkiv-back" href="<?php echo esc_url(get_term_link($primary_term)); ?>">
+          <a class="arkiv-back" href="<?php echo esc_url(get_term_link($primary_term, $tax_slug)); ?>">
             ← Tilbage til <?php echo esc_html($primary_term->name); ?>
           </a>
         <?php endif; ?>
