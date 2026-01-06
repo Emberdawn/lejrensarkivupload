@@ -27,6 +27,7 @@ class Arkiv_Submission_Plugin {
     add_shortcode('arkiv_submit', [$this, 'render_shortcode']);
     add_shortcode('mappe_knapper', [$this, 'render_mappe_knapper_shortcode']);
     add_action('init', [$this, 'maybe_handle_submit']);
+    add_action('init', [$this, 'maybe_handle_edit']);
     add_action('add_meta_boxes', [$this, 'add_suggested_folder_metabox']);
     add_action('admin_menu', [$this, 'register_settings_page']);
     add_action('admin_init', [$this, 'register_settings']);
@@ -710,6 +711,88 @@ JS;
     }
 
     return $ids;
+  }
+
+  public function maybe_handle_edit() {
+    if (empty($_POST['arkiv_edit_btn'])) {
+      return;
+    }
+
+    if (!isset($_POST['arkiv_edit_nonce']) || !wp_verify_nonce($_POST['arkiv_edit_nonce'], 'arkiv_edit_action')) {
+      return;
+    }
+
+    if (!is_user_logged_in()) {
+      return;
+    }
+
+    $post_id = isset($_POST['arkiv_edit_post_id']) ? (int) $_POST['arkiv_edit_post_id'] : 0;
+    if (!$post_id) {
+      return;
+    }
+
+    $post = get_post($post_id);
+    if (!$post || $post->post_type !== $this->get_post_type_slug()) {
+      return;
+    }
+
+    if ((int) $post->post_author !== get_current_user_id()) {
+      return;
+    }
+
+    $new_content = isset($_POST['arkiv_edit_content']) ? wp_kses_post($_POST['arkiv_edit_content']) : '';
+
+    wp_update_post([
+      'ID' => $post_id,
+      'post_content' => $new_content,
+    ]);
+
+    $delete_ids = [];
+    if (!empty($_POST['arkiv_delete_images'])) {
+      $delete_ids = array_filter(array_map('absint', explode(',', wp_unslash($_POST['arkiv_delete_images']))));
+    }
+
+    $gallery_ids = get_post_meta($post_id, '_arkiv_gallery_ids', true);
+    if (!is_array($gallery_ids)) {
+      $gallery_ids = [];
+    }
+
+    if (!empty($delete_ids)) {
+      $remaining = [];
+      foreach ($gallery_ids as $att_id) {
+        if (in_array((int) $att_id, $delete_ids, true)) {
+          wp_delete_attachment((int) $att_id, true);
+          continue;
+        }
+        $remaining[] = (int) $att_id;
+      }
+      $gallery_ids = $remaining;
+    }
+
+    $new_uploads = $this->handle_images_upload($post_id);
+    if (!empty($new_uploads)) {
+      $gallery_ids = array_values(array_merge($gallery_ids, $new_uploads));
+    }
+
+    if (!empty($gallery_ids)) {
+      update_post_meta($post_id, '_arkiv_gallery_ids', $gallery_ids);
+    } else {
+      delete_post_meta($post_id, '_arkiv_gallery_ids');
+    }
+
+    $thumbnail_id = get_post_thumbnail_id($post_id);
+    if ($thumbnail_id && !in_array((int) $thumbnail_id, $gallery_ids, true)) {
+      if (!empty($gallery_ids)) {
+        set_post_thumbnail($post_id, $gallery_ids[0]);
+      } else {
+        delete_post_thumbnail($post_id);
+      }
+    } elseif (!$thumbnail_id && !empty($gallery_ids)) {
+      set_post_thumbnail($post_id, $gallery_ids[0]);
+    }
+
+    wp_safe_redirect(get_permalink($post_id));
+    exit;
   }
 
   private function redirect_with($status) {
