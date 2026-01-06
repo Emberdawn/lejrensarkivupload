@@ -8,6 +8,9 @@ if (have_posts()) : while (have_posts()) : the_post();
   $author_id = (int) get_post_field('post_author', $post_id);
   $author = $author_id ? get_userdata($author_id) : null;
   $author_name = $author ? $author->display_name : '';
+  $is_author = is_user_logged_in() && (int) get_current_user_id() === $author_id;
+  $is_edit = $is_author && !empty($_GET['arkiv_edit']);
+  $edit_url = add_query_arg('arkiv_edit', '1', get_permalink($post_id));
 
   // Taxonomy terms (Mappe)
   $terms = get_the_terms($post_id, 'mappe');
@@ -46,13 +49,59 @@ if (have_posts()) : while (have_posts()) : the_post();
         <?php if ($author_name !== '') : ?>
           <p class="arkiv-author">Forfatter: <?php echo esc_html($author_name); ?></p>
         <?php endif; ?>
+        <?php if ($is_author && !$is_edit) : ?>
+          <a class="arkiv-edit-button" href="<?php echo esc_url($edit_url); ?>">Rediger</a>
+        <?php endif; ?>
       </header>
 
-      <article class="arkiv-content">
-        <?php the_content(); ?>
-      </article>
+      <?php if ($is_edit) : ?>
+        <section class="arkiv-edit">
+          <form class="arkiv-edit-form" method="post" enctype="multipart/form-data" action="<?php echo esc_url($edit_url); ?>">
+            <?php wp_nonce_field('arkiv_edit_action', 'arkiv_edit_nonce'); ?>
+            <input type="hidden" name="arkiv_edit_post_id" value="<?php echo (int) $post_id; ?>">
+            <input type="hidden" name="arkiv_delete_images" id="arkivDeleteImages" value="">
 
-      <?php if (!empty($gallery_ids)) : ?>
+            <label class="arkiv-edit-label" for="arkivEditContent">Historie</label>
+            <textarea id="arkivEditContent" name="arkiv_edit_content" rows="10" required><?php echo esc_textarea(wp_strip_all_tags(get_post_field('post_content', $post_id))); ?></textarea>
+
+            <div class="arkiv-edit-images">
+              <h2>Billeder</h2>
+              <?php if (!empty($gallery_ids)) : ?>
+                <div class="arkiv-edit-grid">
+                  <?php foreach ($gallery_ids as $att_id) :
+                    $thumb = wp_get_attachment_image($att_id, 'medium', false, ['class' => 'arkiv-img']);
+                    if (!$thumb) continue;
+                    ?>
+                    <div class="arkiv-edit-tile" data-att-id="<?php echo (int) $att_id; ?>">
+                      <?php echo $thumb; ?>
+                      <button class="arkiv-delete-image" type="button">Slet</button>
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+              <?php else : ?>
+                <p class="arkiv-edit-empty">Ingen billeder endnu.</p>
+              <?php endif; ?>
+            </div>
+
+            <div class="arkiv-edit-upload">
+              <label class="arkiv-edit-label" for="arkivEditImages">Upload flere billeder</label>
+              <input id="arkivEditImages" type="file" name="arkiv_images[]" accept="image/*" multiple>
+              <div class="arkiv-edit-preview" id="arkivEditPreview"></div>
+            </div>
+
+            <div class="arkiv-edit-actions">
+              <button type="submit" name="arkiv_edit_btn" value="1" class="arkiv-edit-save">Gem</button>
+              <a class="arkiv-edit-cancel" href="<?php echo esc_url(get_permalink($post_id)); ?>">Annuler</a>
+            </div>
+          </form>
+        </section>
+      <?php else : ?>
+        <article class="arkiv-content">
+          <?php the_content(); ?>
+        </article>
+      <?php endif; ?>
+
+      <?php if (!$is_edit && !empty($gallery_ids)) : ?>
         <section class="arkiv-gallery">
           <h2>Billeder</h2>
 
@@ -150,6 +199,18 @@ if (have_posts()) : while (have_posts()) : the_post();
     .arkiv-title { margin: 0 0 10px; font-size: 34px; line-height: 1.15; }
     .arkiv-author { margin: 0 0 18px; color: #666; font-size: 14px; }
     .arkiv-content { margin-top: 18px; font-size: 16px; line-height: 1.7; }
+    .arkiv-edit-button {
+      display: inline-flex;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: #111;
+      color: #fff;
+      text-decoration: none;
+      font-size: 14px;
+      margin-top: 8px;
+      align-items: center;
+      gap: 6px;
+    }
 
     .arkiv-gallery { margin-top: 28px; }
     .arkiv-gallery h2 { margin: 0 0 12px; font-size: 22px; }
@@ -167,6 +228,109 @@ if (have_posts()) : while (have_posts()) : the_post();
     .arkiv-back {
       display: inline-flex; padding: 10px 14px; border-radius: 999px;
       background: #f2f2f2; text-decoration: none;
+    }
+
+    .arkiv-edit {
+      margin-top: 18px;
+      background: #f7f7f7;
+      padding: 18px;
+      border-radius: 16px;
+    }
+
+    .arkiv-edit-form textarea {
+      width: 100%;
+      max-width: 100%;
+      border-radius: 12px;
+      border: 1px solid #d9d9d9;
+      padding: 12px;
+      font-size: 15px;
+      line-height: 1.6;
+      background: #fff;
+    }
+
+    .arkiv-edit-label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .arkiv-edit-images {
+      margin-top: 18px;
+    }
+
+    .arkiv-edit-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 14px;
+    }
+
+    .arkiv-edit-tile {
+      position: relative;
+      background: #fff;
+      padding: 10px;
+      border-radius: 12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.05);
+    }
+
+    .arkiv-delete-image {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(17,17,17,.9);
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .arkiv-edit-empty {
+      margin: 8px 0 0;
+      opacity: .7;
+    }
+
+    .arkiv-edit-upload {
+      margin-top: 18px;
+    }
+
+    .arkiv-edit-preview {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 12px;
+    }
+
+    .arkiv-edit-preview img {
+      width: 100%;
+      height: auto;
+      border-radius: 12px;
+    }
+
+    .arkiv-edit-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 22px;
+      align-items: center;
+    }
+
+    .arkiv-edit-save {
+      border: none;
+      background: #111;
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    .arkiv-edit-cancel {
+      padding: 10px 18px;
+      border-radius: 999px;
+      background: #e8e8e8;
+      text-decoration: none;
+      color: #111;
+      font-size: 15px;
     }
 
     /* ===== Arkiv Lightbox ===== */
@@ -332,6 +496,52 @@ endwhile; endif;
 ?>
 <script>
 (function () {
+  const deleteButtons = document.querySelectorAll('.arkiv-delete-image');
+  const deleteInput = document.getElementById('arkivDeleteImages');
+  const uploadInput = document.getElementById('arkivEditImages');
+  const previewWrap = document.getElementById('arkivEditPreview');
+
+  if (deleteButtons.length && deleteInput) {
+    deleteButtons.forEach(button => {
+      button.addEventListener('click', function () {
+        const tile = this.closest('.arkiv-edit-tile');
+        if (!tile) return;
+        const attId = tile.dataset.attId;
+        if (!attId) return;
+        const confirmDelete = window.confirm('vil du virkelig slette billedet! ja/nej');
+        if (!confirmDelete) return;
+        tile.classList.add('is-deleting');
+        tile.style.opacity = '0.4';
+        const current = deleteInput.value ? deleteInput.value.split(',') : [];
+        if (!current.includes(attId)) {
+          current.push(attId);
+          deleteInput.value = current.join(',');
+        }
+        tile.remove();
+      });
+    });
+  }
+
+  if (uploadInput && previewWrap) {
+    uploadInput.addEventListener('change', function () {
+      previewWrap.innerHTML = '';
+      const files = Array.from(uploadInput.files || []);
+      files.forEach(file => {
+        if (!file.type.startsWith('image/')) {
+          return;
+        }
+        const img = document.createElement('img');
+        img.alt = file.name;
+        previewWrap.appendChild(img);
+        const reader = new FileReader();
+        reader.onload = function (event) {
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+  }
+
   const lightbox = document.getElementById('arkivLightbox');
   if (!lightbox) return;
 
