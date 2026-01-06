@@ -5,6 +5,9 @@ get_header();
 if (have_posts()) : while (have_posts()) : the_post();
 
   $post_id = get_the_ID();
+  $author_id = (int) get_post_field('post_author', $post_id);
+  $author = $author_id ? get_userdata($author_id) : null;
+  $author_name = $author ? $author->display_name : '';
 
   // Taxonomy terms (Mappe)
   $terms = get_the_terms($post_id, 'mappe');
@@ -40,6 +43,9 @@ if (have_posts()) : while (have_posts()) : the_post();
 
       <header class="arkiv-header">
         <h1 class="arkiv-title"><?php the_title(); ?></h1>
+        <?php if ($author_name !== '') : ?>
+          <p class="arkiv-author">Forfatter: <?php echo esc_html($author_name); ?></p>
+        <?php endif; ?>
       </header>
 
       <article class="arkiv-content">
@@ -142,6 +148,7 @@ if (have_posts()) : while (have_posts()) : the_post();
     .arkiv-wrap { max-width: 1000px; margin: 0 auto; }
 
     .arkiv-title { margin: 0 0 10px; font-size: 34px; line-height: 1.15; }
+    .arkiv-author { margin: 0 0 18px; color: #666; font-size: 14px; }
     .arkiv-content { margin-top: 18px; font-size: 16px; line-height: 1.7; }
 
     .arkiv-gallery { margin-top: 28px; }
