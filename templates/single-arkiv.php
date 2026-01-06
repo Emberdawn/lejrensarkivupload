@@ -40,16 +40,6 @@ if (have_posts()) : while (have_posts()) : the_post();
 
       <header class="arkiv-header">
         <h1 class="arkiv-title"><?php the_title(); ?></h1>
-
-        <?php if (!empty($terms) && !is_wp_error($terms)) : ?>
-          <div class="arkiv-terms">
-            <?php foreach ($terms as $term) : ?>
-              <a class="arkiv-term" href="<?php echo esc_url(get_term_link($term)); ?>">
-                <?php echo esc_html($term->name); ?>
-              </a>
-            <?php endforeach; ?>
-          </div>
-        <?php endif; ?>
       </header>
 
       <article class="arkiv-content">
@@ -152,12 +142,6 @@ if (have_posts()) : while (have_posts()) : the_post();
     .arkiv-wrap { max-width: 1000px; margin: 0 auto; }
 
     .arkiv-title { margin: 0 0 10px; font-size: 34px; line-height: 1.15; }
-    .arkiv-terms { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
-    .arkiv-term {
-      display: inline-flex; padding: 6px 12px; border-radius: 999px;
-      background: #f2f2f2; text-decoration: none;
-    }
-
     .arkiv-content { margin-top: 18px; font-size: 16px; line-height: 1.7; }
 
     .arkiv-gallery { margin-top: 28px; }
