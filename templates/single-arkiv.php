@@ -295,7 +295,8 @@ if (have_posts()) : while (have_posts()) : the_post();
       display: flex;
       flex-wrap: wrap;
       gap: 8px 12px;
-      align-items: baseline;
+      align-items: center;
+      justify-content: space-between;
       margin-bottom: 6px;
     }
 
@@ -307,7 +308,6 @@ if (have_posts()) : while (have_posts()) : the_post();
     }
 
     .arkiv-comment-delete {
-      margin-left: auto;
       border: none;
       background: #d63638;
       color: #fff;
@@ -316,6 +316,7 @@ if (have_posts()) : while (have_posts()) : the_post();
       font-size: 12px;
       text-decoration: none;
       cursor: pointer;
+      white-space: nowrap;
     }
 
     .arkiv-comment-delete:hover {
