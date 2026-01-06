@@ -2,8 +2,6 @@
 get_header();
 ?>
 <main style="max-width:1200px;margin:0 auto;padding:20px;">
-  <?php the_archive_title('<h1>', '</h1>'); ?>
-
   <style>
     .arkiv-nav { margin: 12px 0 20px; }
     .arkiv-back {
@@ -39,6 +37,8 @@ get_header();
       ← Tilbage til arkivet
     </a>
   </div>
+
+  <?php the_archive_title('<h1>', '</h1>'); ?>
 
   <div class="masonry">
     <?php if (have_posts()) : while (have_posts()) : the_post(); ?>
