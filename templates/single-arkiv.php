@@ -329,6 +329,8 @@ if (have_posts()) : while (have_posts()) : the_post();
       border: 1px solid #d9d9d9;
       padding: 10px 12px;
       font-size: 15px;
+      line-height: 1.4;
+      min-height: 44px;
       background: #fff;
     }
 
