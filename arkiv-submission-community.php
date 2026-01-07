@@ -26,7 +26,6 @@ class Arkiv_Submission_Plugin {
 
   public function __construct() {
     add_shortcode('arkiv_submit', [$this, 'render_shortcode']);
-    add_shortcode('arkiv_media_uploader', [$this, 'render_media_uploader_shortcode']);
     add_shortcode('mappe_knapper', [$this, 'render_mappe_knapper_shortcode']);
     add_action('init', [$this, 'maybe_handle_submit']);
     add_action('init', [$this, 'maybe_handle_edit']);
@@ -35,79 +34,11 @@ class Arkiv_Submission_Plugin {
     add_action('admin_init', [$this, 'register_settings']);
     add_action('admin_init', [$this, 'maybe_handle_mappe_settings_save']);
     add_action('admin_enqueue_scripts', [$this, 'enqueue_mappe_admin_assets']);
-    add_action('wp_enqueue_scripts', [$this, 'register_media_uploader_assets']);
     add_action('wp_head', [$this, 'output_mappe_knapper_styles']);
     add_action('wp_ajax_arkiv_submit', [$this, 'handle_ajax_submit']);
     add_filter('template_include', [$this, 'use_mappe_template'], 99);
     add_action('pre_get_posts', [$this, 'restrict_mappe_query_to_arkiv']);
     add_action('pre_comment_on_post', [$this, 'block_anonymous_comments']);
-  }
-
-  public function register_media_uploader_assets() {
-    $version = '1.0.0';
-    $base_url = plugin_dir_url(__FILE__);
-    wp_register_style(
-      'arkiv-media-uploader',
-      $base_url . 'assets/arkiv-media-uploader.css',
-      [],
-      $version
-    );
-    wp_register_script(
-      'arkiv-media-uploader',
-      $base_url . 'assets/arkiv-media-uploader.js',
-      [],
-      $version,
-      true
-    );
-  }
-
-  private function enqueue_media_uploader_assets() {
-    wp_enqueue_style('arkiv-media-uploader');
-    wp_enqueue_script('arkiv-media-uploader');
-
-    $settings = [
-      'root' => esc_url_raw(rest_url()),
-      'nonce' => wp_create_nonce('wp_rest'),
-    ];
-
-    $inline = sprintf(
-      'window.wpApiSettings = window.wpApiSettings || {}; window.wpApiSettings.root = window.wpApiSettings.root || %s; window.wpApiSettings.nonce = window.wpApiSettings.nonce || %s;',
-      wp_json_encode($settings['root']),
-      wp_json_encode($settings['nonce'])
-    );
-    wp_add_inline_script('arkiv-media-uploader', $inline, 'before');
-  }
-
-  public function render_media_uploader_shortcode($atts) {
-    $this->enqueue_media_uploader_assets();
-    ob_start();
-    ?>
-    <div class="arkiv-media-uploader" data-arkiv-media-uploader>
-      <div class="arkiv-media-auth">
-        <label>
-          Application Username (valgfri)
-          <input type="text" data-auth-user placeholder="brugernavn">
-        </label>
-        <label>
-          Application Password (valgfri)
-          <input type="password" data-auth-pass placeholder="xxxx xxxx xxxx xxxx">
-        </label>
-        <p class="arkiv-media-hint">
-          Nonce via wpApiSettings bruges automatisk hvis tilgængelig. Ellers kan du bruge
-          Application Password + Basic Auth.
-        </p>
-      </div>
-
-      <div class="arkiv-media-dropzone" data-dropzone>
-        <span>Træk filer hertil eller</span>
-        <button type="button" data-select-files>Vælg filer</button>
-        <input type="file" multiple hidden data-file-input>
-      </div>
-
-      <div class="arkiv-media-list" data-file-list></div>
-    </div>
-    <?php
-    return ob_get_clean();
   }
 
   public function render_shortcode($atts) {
