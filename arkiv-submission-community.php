@@ -45,6 +45,12 @@ class Arkiv_Submission_Plugin {
     add_filter('show_admin_bar', [$this, 'maybe_hide_admin_bar']);
   }
 
+  public static function activate() {
+    if (get_option(self::OPTION_ADMIN_BAR_ROLES, null) === null) {
+      update_option(self::OPTION_ADMIN_BAR_ROLES, ['administrator']);
+    }
+  }
+
   public function render_shortcode($atts) {
     if (!is_user_logged_in()) {
       return '<p>Du skal være logget ind for at indsende.</p>';
@@ -693,7 +699,7 @@ class Arkiv_Submission_Plugin {
       [
         'type' => 'array',
         'sanitize_callback' => [$this, 'sanitize_admin_bar_roles'],
-        'default' => [],
+        'default' => ['administrator'],
       ]
     );
   }
@@ -909,8 +915,8 @@ class Arkiv_Submission_Plugin {
                       name="<?php echo esc_attr(self::OPTION_ADMIN_BAR_ROLES); ?>[]"
                       value="<?php echo esc_attr($role_key); ?>"
                       <?php checked(in_array($role_key, $allowed_roles, true)); ?>
+                      aria-label="Må se admin bar"
                     >
-                    Må se admin bar
                   </label>
                 </td>
               </tr>
@@ -1482,5 +1488,7 @@ JS;
     return sanitize_key(get_option(self::OPTION_TAX_SLUG, self::TAX));
   }
 }
+
+register_activation_hook(__FILE__, ['Arkiv_Submission_Plugin', 'activate']);
 
 new Arkiv_Submission_Plugin();
