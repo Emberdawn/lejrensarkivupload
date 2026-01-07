@@ -1359,6 +1359,15 @@ JS;
       'post_content' => $new_content,
     ]);
 
+    if (array_key_exists('arkiv_edit_mappe', $_POST)) {
+      $mappe_input = absint(wp_unslash($_POST['arkiv_edit_mappe']));
+      if ($mappe_input > 0) {
+        wp_set_object_terms($post_id, [$mappe_input], $this->get_taxonomy_slug(), false);
+      } else {
+        wp_set_object_terms($post_id, [], $this->get_taxonomy_slug(), false);
+      }
+    }
+
     $delete_ids = [];
     if (!empty($_POST['arkiv_delete_images'])) {
       $delete_ids = array_filter(array_map('absint', explode(',', wp_unslash($_POST['arkiv_delete_images']))));

@@ -14,6 +14,11 @@ if (have_posts()) : while (have_posts()) : the_post();
 
   // Taxonomy terms (Mappe)
   $terms = get_the_terms($post_id, 'mappe');
+  $mappe_terms = get_terms([
+    'taxonomy' => 'mappe',
+    'hide_empty' => false,
+  ]);
+  $current_mappe_id = (!empty($terms) && !is_wp_error($terms)) ? (int) $terms[0]->term_id : 0;
 
   // Galleri IDs (som du gemmer i dit plugin)
   $gallery_ids = get_post_meta($post_id, '_arkiv_gallery_ids', true);
@@ -86,6 +91,20 @@ if (have_posts()) : while (have_posts()) : the_post();
               ]
             );
             ?>
+
+            <div class="arkiv-edit-mappe">
+              <label class="arkiv-edit-label" for="arkivEditMappe">Mappe</label>
+              <select id="arkivEditMappe" name="arkiv_edit_mappe" class="arkiv-edit-select">
+                <option value="0">Ingen mappe</option>
+                <?php if (!is_wp_error($mappe_terms)) : ?>
+                  <?php foreach ($mappe_terms as $term) : ?>
+                    <option value="<?php echo (int) $term->term_id; ?>" <?php selected($current_mappe_id, (int) $term->term_id); ?>>
+                      <?php echo esc_html($term->name); ?>
+                    </option>
+                  <?php endforeach; ?>
+                <?php endif; ?>
+              </select>
+            </div>
 
             <div class="arkiv-edit-images">
               <h2>Billeder</h2>
@@ -356,6 +375,7 @@ if (have_posts()) : while (have_posts()) : the_post();
       margin-top: 18px;
     }
 
+    .arkiv-edit-select,
     .arkiv-edit-featured select {
       width: 100%;
       max-width: 100%;
