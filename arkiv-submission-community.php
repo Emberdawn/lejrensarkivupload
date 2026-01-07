@@ -436,12 +436,14 @@ class Arkiv_Submission_Plugin {
 
     $atts = shortcode_atts([
       'taxonomy' => $this->get_taxonomy_slug(),
-      'show_empty' => false,
+      'show_empty' => true,
     ], $atts);
+
+    $show_empty = filter_var($atts['show_empty'], FILTER_VALIDATE_BOOLEAN);
 
     $terms = get_terms([
       'taxonomy' => $atts['taxonomy'],
-      'hide_empty' => !$atts['show_empty'],
+      'hide_empty' => !$show_empty,
     ]);
 
     if (is_wp_error($terms) || empty($terms)) {
