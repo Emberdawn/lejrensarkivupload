@@ -36,6 +36,8 @@ class Arkiv_Submission_Plugin {
     add_action('admin_enqueue_scripts', [$this, 'enqueue_mappe_admin_assets']);
     add_action('wp_head', [$this, 'output_mappe_knapper_styles']);
     add_action('wp_ajax_arkiv_submit', [$this, 'handle_ajax_submit']);
+    add_action('wp_ajax_arkiv_create_post', [$this, 'handle_ajax_create_post']);
+    add_action('wp_ajax_arkiv_upload_image', [$this, 'handle_ajax_upload_image']);
     add_filter('template_include', [$this, 'use_mappe_template'], 99);
     add_action('pre_get_posts', [$this, 'restrict_mappe_query_to_arkiv']);
     add_action('pre_comment_on_post', [$this, 'block_anonymous_comments']);
@@ -166,6 +168,19 @@ class Arkiv_Submission_Plugin {
         transition: width 0.2s ease;
       }
 
+      .arkiv-upload-bar.is-error span {
+        background: #dc3232;
+      }
+
+      .arkiv-upload-state {
+        font-size: 12px;
+        color: #555;
+      }
+
+      .arkiv-upload-state.is-error {
+        color: #dc3232;
+      }
+
       .arkiv-upload-status {
         margin-top: 8px;
         font-size: 13px;
@@ -226,6 +241,11 @@ class Arkiv_Submission_Plugin {
             barWrap.appendChild(bar);
             item.appendChild(barWrap);
 
+            const state = document.createElement('div');
+            state.className = 'arkiv-upload-state';
+            state.textContent = 'Venter';
+            item.appendChild(state);
+
             previewWrap.appendChild(item);
 
             if (file.type.startsWith('image/')) {
@@ -237,20 +257,61 @@ class Arkiv_Submission_Plugin {
             }
 
             fileMeta.push({
+              file,
               size: file.size || 0,
               bar,
+              barWrap,
+              state,
             });
           });
         }
 
-        function updateProgress(loaded) {
-          let remaining = loaded;
-          fileMeta.forEach(meta => {
-            const size = meta.size || 0;
-            const used = Math.min(size, Math.max(0, remaining));
-            const percent = size ? Math.round((used / size) * 100) : 100;
-            meta.bar.style.width = `${percent}%`;
-            remaining -= used;
+        function updateProgress(meta, loaded) {
+          const size = meta.size || 0;
+          const percent = size ? Math.round((loaded / size) * 100) : 100;
+          meta.bar.style.width = `${Math.min(100, percent)}%`;
+        }
+
+        function setItemState(meta, state, isError = false) {
+          meta.state.textContent = state;
+          meta.state.classList.toggle('is-error', isError);
+          meta.barWrap.classList.toggle('is-error', isError);
+        }
+
+        function uploadSingleFile(meta, postId, nonce) {
+          return new Promise(resolve => {
+            const formData = new FormData();
+            formData.append('action', 'arkiv_upload_image');
+            formData.append('post_id', postId);
+            formData.append('arkiv_submit_nonce', nonce);
+            formData.append('arkiv_single_image', meta.file);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '<?php echo esc_url(admin_url('admin-ajax.php')); ?>');
+            xhr.responseType = 'json';
+
+            xhr.upload.addEventListener('progress', function (event) {
+              if (!event.lengthComputable) return;
+              updateProgress(meta, event.loaded);
+            });
+
+            xhr.addEventListener('load', function () {
+              if (xhr.status >= 200 && xhr.status < 300 && xhr.response && xhr.response.success) {
+                updateProgress(meta, meta.size || 0);
+                setItemState(meta, 'Færdig');
+                resolve(true);
+                return;
+              }
+              setItemState(meta, 'fejl', true);
+              resolve(false);
+            });
+
+            xhr.addEventListener('error', function () {
+              setItemState(meta, 'fejl', true);
+              resolve(false);
+            });
+
+            xhr.send(formData);
           });
         }
 
@@ -273,34 +334,55 @@ class Arkiv_Submission_Plugin {
 
           event.preventDefault();
           form.classList.add('is-uploading');
-          setStatus('Uploader filer...');
+          setStatus('Opretter opslag...');
 
           const formData = new FormData(form);
-          formData.append('action', 'arkiv_submit');
+          formData.delete('arkiv_images[]');
+          formData.append('action', 'arkiv_create_post');
 
           const xhr = new XMLHttpRequest();
           xhr.open('POST', '<?php echo esc_url(admin_url('admin-ajax.php')); ?>');
           xhr.responseType = 'json';
 
-          xhr.upload.addEventListener('progress', function (event) {
-            if (!event.lengthComputable) return;
-            updateProgress(event.loaded);
-          });
+          xhr.addEventListener('load', async function () {
+            if (!(xhr.status >= 200 && xhr.status < 300)) {
+              form.classList.remove('is-uploading');
+              setStatus('Noget gik galt. Prøv igen.');
+              return;
+            }
 
-          xhr.addEventListener('load', function () {
-            form.classList.remove('is-uploading');
-            if (xhr.status >= 200 && xhr.status < 300) {
-              const response = xhr.response || {};
-              if (response.success && response.data && response.data.redirect) {
-                window.location.href = response.data.redirect;
-                return;
-              }
-              if (response.success) {
-                window.location.href = window.location.href.split('?')[0];
-                return;
+            const response = xhr.response || {};
+            if (!response.success || !response.data || !response.data.post_id) {
+              form.classList.remove('is-uploading');
+              setStatus('Noget gik galt. Prøv igen.');
+              return;
+            }
+
+            const postId = response.data.post_id;
+            const redirectUrl = response.data.redirect || window.location.href.split('?')[0];
+            const nonce = form.querySelector('[name="arkiv_submit_nonce"]')?.value || '';
+
+            let hadError = false;
+
+            for (let i = 0; i < fileMeta.length; i++) {
+              const meta = fileMeta[i];
+              setItemState(meta, 'Uploader');
+              setStatus(`Uploader ${i + 1} af ${fileMeta.length}...`);
+              const ok = await uploadSingleFile(meta, postId, nonce);
+              if (!ok) {
+                hadError = true;
               }
             }
-            setStatus('Noget gik galt. Prøv igen.');
+
+            form.classList.remove('is-uploading');
+
+            if (hadError) {
+              setStatus('Nogle filer fejlede. Prøv igen.');
+              return;
+            }
+
+            setStatus('Færdig');
+            window.location.href = redirectUrl;
           });
 
           xhr.addEventListener('error', function () {
@@ -836,7 +918,59 @@ JS;
     wp_send_json_success(['redirect' => $redirect]);
   }
 
-  private function submit_post() {
+  public function handle_ajax_create_post() {
+    if (!is_user_logged_in()) {
+      wp_send_json_error(['message' => 'Ikke logget ind.'], 403);
+    }
+
+    if (empty($_POST['arkiv_submit_nonce']) || !wp_verify_nonce($_POST['arkiv_submit_nonce'], 'arkiv_submit_action')) {
+      wp_send_json_error(['message' => 'Ugyldig anmodning.'], 400);
+    }
+
+    $result = $this->submit_post(false);
+    if (is_wp_error($result)) {
+      wp_send_json_error(['message' => 'Noget gik galt.'], 400);
+    }
+
+    $redirect = $this->get_success_redirect_url($this->get_fallback_redirect_url());
+    wp_send_json_success([
+      'post_id' => $result,
+      'redirect' => $redirect,
+    ]);
+  }
+
+  public function handle_ajax_upload_image() {
+    if (!is_user_logged_in()) {
+      wp_send_json_error(['message' => 'Ikke logget ind.'], 403);
+    }
+
+    if (empty($_POST['arkiv_submit_nonce']) || !wp_verify_nonce($_POST['arkiv_submit_nonce'], 'arkiv_submit_action')) {
+      wp_send_json_error(['message' => 'Ugyldig anmodning.'], 400);
+    }
+
+    $post_id = isset($_POST['post_id']) ? (int) $_POST['post_id'] : 0;
+    if (!$post_id) {
+      wp_send_json_error(['message' => 'Ugyldigt opslag.'], 400);
+    }
+
+    $post = get_post($post_id);
+    if (!$post || $post->post_type !== $this->get_post_type_slug()) {
+      wp_send_json_error(['message' => 'Ugyldigt opslag.'], 400);
+    }
+
+    if ((int) $post->post_author !== get_current_user_id()) {
+      wp_send_json_error(['message' => 'Ingen adgang.'], 403);
+    }
+
+    $attachment_id = $this->handle_single_image_upload($post_id);
+    if (is_wp_error($attachment_id) || !$attachment_id) {
+      wp_send_json_error(['message' => 'Upload fejlede.'], 400);
+    }
+
+    wp_send_json_success(['attachment_id' => $attachment_id]);
+  }
+
+  private function submit_post($include_images = true) {
     if (!is_user_logged_in()) {
       return new WP_Error('arkiv_not_logged_in', 'Not logged in');
     }
@@ -872,11 +1006,13 @@ JS;
       wp_set_object_terms($post_id, [$term_id], $this->get_taxonomy_slug(), false);
     }
 
-    $attachment_ids = $this->handle_images_upload($post_id);
+    if ($include_images) {
+      $attachment_ids = $this->handle_images_upload($post_id);
 
-    if (!empty($attachment_ids)) {
-      set_post_thumbnail($post_id, $attachment_ids[0]);
-      update_post_meta($post_id, '_arkiv_gallery_ids', $attachment_ids);
+      if (!empty($attachment_ids)) {
+        set_post_thumbnail($post_id, $attachment_ids[0]);
+        update_post_meta($post_id, '_arkiv_gallery_ids', $attachment_ids);
+      }
     }
 
     return $post_id;
@@ -957,6 +1093,43 @@ JS;
     }
 
     return $ids;
+  }
+
+  private function handle_single_image_upload($post_id) {
+    if (empty($_FILES['arkiv_single_image'])) {
+      return new WP_Error('arkiv_missing_file', 'Missing file');
+    }
+
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+    require_once ABSPATH . 'wp-admin/includes/media.php';
+    require_once ABSPATH . 'wp-admin/includes/image.php';
+
+    $file = $_FILES['arkiv_single_image'];
+
+    $ft = wp_check_filetype($file['name']);
+    $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    if (empty($ft['ext']) || !in_array(strtolower($ft['ext']), $allowed, true)) {
+      return new WP_Error('arkiv_invalid_file', 'Invalid file');
+    }
+
+    $attachment_id = media_handle_upload('arkiv_single_image', $post_id);
+    if (is_wp_error($attachment_id) || !$attachment_id) {
+      return new WP_Error('arkiv_upload_failed', 'Upload failed');
+    }
+
+    $gallery_ids = get_post_meta($post_id, '_arkiv_gallery_ids', true);
+    if (!is_array($gallery_ids)) {
+      $gallery_ids = [];
+    }
+
+    $gallery_ids[] = (int) $attachment_id;
+    update_post_meta($post_id, '_arkiv_gallery_ids', $gallery_ids);
+
+    if (!has_post_thumbnail($post_id)) {
+      set_post_thumbnail($post_id, $attachment_id);
+    }
+
+    return (int) $attachment_id;
   }
 
   public function maybe_handle_edit() {
