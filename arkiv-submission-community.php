@@ -442,6 +442,8 @@ class Arkiv_Submission_Plugin {
     $terms = get_terms([
       'taxonomy' => $atts['taxonomy'],
       'hide_empty' => !$show_empty,
+      'orderby' => 'name',
+      'order' => 'ASC',
     ]);
 
     if (is_wp_error($terms) || empty($terms)) {
