@@ -22,12 +22,14 @@ class Arkiv_Submission_Plugin {
   const OPTION_BACK_PAGE_ID = 'arkiv_back_page_id';
   const OPTION_UPLOAD_REDIRECT_PAGE_ID = 'arkiv_upload_redirect_page_id';
   const OPTION_ADMIN_BAR_ROLES = 'arkiv_admin_bar_roles';
+  const OPTION_LOGOUT_REDIRECT_SLUG = 'arkiv_logout_redirect_slug';
 
   private $mappe_settings_page_hook = '';
 
   public function __construct() {
     add_shortcode('arkiv_submit', [$this, 'render_shortcode']);
     add_shortcode('mappe_knapper', [$this, 'render_mappe_knapper_shortcode']);
+    add_shortcode('logout_page', [$this, 'render_logout_shortcode']);
     add_action('init', [$this, 'maybe_handle_submit']);
     add_action('init', [$this, 'maybe_handle_edit']);
     add_action('add_meta_boxes', [$this, 'add_suggested_folder_metabox']);
@@ -704,6 +706,16 @@ class Arkiv_Submission_Plugin {
     );
 
     register_setting(
+      'arkiv_submission_settings',
+      self::OPTION_LOGOUT_REDIRECT_SLUG,
+      [
+        'type' => 'string',
+        'sanitize_callback' => [$this, 'sanitize_logout_slug'],
+        'default' => 'login',
+      ]
+    );
+
+    register_setting(
       'arkiv_submission_admin_bar_settings',
       self::OPTION_ADMIN_BAR_ROLES,
       [
@@ -736,6 +748,11 @@ class Arkiv_Submission_Plugin {
     $roles = array_keys(get_editable_roles());
     $value = array_map('sanitize_key', $value);
     return array_values(array_intersect($roles, $value));
+  }
+
+  public function sanitize_logout_slug($value) {
+    $value = sanitize_title($value);
+    return $value !== '' ? $value : 'login';
   }
 
   public function maybe_hide_admin_bar($show) {
@@ -772,6 +789,7 @@ class Arkiv_Submission_Plugin {
     $tax_slug = $this->get_taxonomy_slug();
     $back_page_id = (int) get_option(self::OPTION_BACK_PAGE_ID, 0);
     $upload_redirect_page_id = (int) get_option(self::OPTION_UPLOAD_REDIRECT_PAGE_ID, 0);
+    $logout_redirect_slug = $this->get_logout_redirect_slug();
     ?>
     <div class="wrap">
       <h1>Arkiv Submission</h1>
@@ -825,6 +843,13 @@ class Arkiv_Submission_Plugin {
               ]);
               ?>
               <p class="description">Vælg siden brugerne sendes til når upload er færdig.</p>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Logout redirect slug</th>
+            <td>
+              <input type="text" name="<?php echo esc_attr(self::OPTION_LOGOUT_REDIRECT_SLUG); ?>" value="<?php echo esc_attr($logout_redirect_slug); ?>" class="regular-text">
+              <p class="description">Sluggen for siden brugeren sendes til efter logout (fx "login").</p>
             </td>
           </tr>
         </table>
@@ -1507,6 +1532,24 @@ JS;
 
   private function get_taxonomy_slug() {
     return sanitize_key(get_option(self::OPTION_TAX_SLUG, self::TAX));
+  }
+
+  private function get_logout_redirect_slug() {
+    $slug = get_option(self::OPTION_LOGOUT_REDIRECT_SLUG, 'login');
+    $slug = is_string($slug) ? sanitize_title($slug) : 'login';
+    return $slug !== '' ? $slug : 'login';
+  }
+
+  public function render_logout_shortcode() {
+    if (!is_user_logged_in()) {
+      wp_safe_redirect(home_url());
+      exit;
+    }
+
+    $slug = $this->get_logout_redirect_slug();
+    $redirect_url = home_url('/' . trim($slug, '/') . '/');
+    wp_safe_redirect(wp_logout_url($redirect_url));
+    exit;
   }
 }
 
