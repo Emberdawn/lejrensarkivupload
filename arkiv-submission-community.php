@@ -20,6 +20,7 @@ class Arkiv_Submission_Plugin {
   const OPTION_CPT_SLUG = 'arkiv_cpt_slug';
   const OPTION_TAX_SLUG = 'arkiv_tax_slug';
   const OPTION_BACK_PAGE_ID = 'arkiv_back_page_id';
+  const OPTION_UPLOAD_REDIRECT_PAGE_ID = 'arkiv_upload_redirect_page_id';
 
   private $mappe_settings_page_hook = '';
 
@@ -34,6 +35,7 @@ class Arkiv_Submission_Plugin {
     add_action('admin_init', [$this, 'maybe_handle_mappe_settings_save']);
     add_action('admin_enqueue_scripts', [$this, 'enqueue_mappe_admin_assets']);
     add_action('wp_head', [$this, 'output_mappe_knapper_styles']);
+    add_action('wp_ajax_arkiv_submit', [$this, 'handle_ajax_submit']);
     add_filter('template_include', [$this, 'use_mappe_template'], 99);
     add_action('pre_get_posts', [$this, 'restrict_mappe_query_to_arkiv']);
     add_action('pre_comment_on_post', [$this, 'block_anonymous_comments']);
@@ -61,7 +63,7 @@ class Arkiv_Submission_Plugin {
     ob_start();
     echo $msg;
     ?>
-    <form method="post" enctype="multipart/form-data" style="max-width:700px;">
+    <form class="arkiv-submit-form" method="post" enctype="multipart/form-data" style="max-width:700px;">
       <?php wp_nonce_field('arkiv_submit_action', 'arkiv_submit_nonce'); ?>
 
       <p>
@@ -96,8 +98,10 @@ class Arkiv_Submission_Plugin {
 
       <p>
         <label><strong>Upload billeder (valgfri, flere tilladt)</strong></label><br>
-        <input type="file" name="arkiv_images[]" accept="image/*" multiple>
-        <br><small>Tip: Vælg gerne 1–10 billeder. Første billede bruges som forsidebillede.</small>
+        <input id="arkivUploadImages" type="file" name="arkiv_images[]" accept="image/*" multiple data-max-files="50">
+        <br><small>Tip: Vælg gerne 1–50 billeder. Første billede bruges som forsidebillede.</small>
+        <div class="arkiv-upload-preview" id="arkivUploadPreview"></div>
+        <p class="arkiv-upload-status" id="arkivUploadStatus" aria-live="polite"></p>
       </p>
 
       <p>
@@ -113,6 +117,201 @@ class Arkiv_Submission_Plugin {
         </button>
       </p>
     </form>
+    <style>
+      .arkiv-upload-preview {
+        margin-top: 12px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 12px;
+      }
+
+      .arkiv-upload-item {
+        background: #f7f7f7;
+        border-radius: 12px;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        box-shadow: 0 1px 2px rgba(0,0,0,.05);
+      }
+
+      .arkiv-upload-thumb {
+        width: 100%;
+        border-radius: 10px;
+        object-fit: cover;
+        background: #fff;
+      }
+
+      .arkiv-upload-name {
+        font-size: 12px;
+        color: #333;
+        word-break: break-word;
+      }
+
+      .arkiv-upload-bar {
+        position: relative;
+        height: 6px;
+        border-radius: 999px;
+        background: #e1e1e1;
+        overflow: hidden;
+      }
+
+      .arkiv-upload-bar span {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        width: 0%;
+        background: #111;
+        transition: width 0.2s ease;
+      }
+
+      .arkiv-upload-status {
+        margin-top: 8px;
+        font-size: 13px;
+        color: #555;
+      }
+
+      .arkiv-submit-form.is-uploading button[type="submit"] {
+        opacity: 0.6;
+        pointer-events: none;
+      }
+    </style>
+    <script>
+      (function () {
+        const form = document.querySelector('.arkiv-submit-form');
+        const uploadInput = document.getElementById('arkivUploadImages');
+        const previewWrap = document.getElementById('arkivUploadPreview');
+        const statusEl = document.getElementById('arkivUploadStatus');
+        if (!form || !uploadInput || !previewWrap || !statusEl) return;
+
+        const maxFiles = parseInt(uploadInput.dataset.maxFiles, 10) || 50;
+        let fileMeta = [];
+
+        function setStatus(message) {
+          statusEl.textContent = message || '';
+        }
+
+        function buildPreview(files) {
+          previewWrap.innerHTML = '';
+          fileMeta = [];
+          if (!files.length) {
+            setStatus('');
+            return;
+          }
+
+          if (files.length > maxFiles) {
+            setStatus(`Du kan max uploade ${maxFiles} filer ad gangen.`);
+          } else {
+            setStatus('');
+          }
+
+          files.slice(0, maxFiles).forEach(file => {
+            const item = document.createElement('div');
+            item.className = 'arkiv-upload-item';
+
+            const img = document.createElement('img');
+            img.className = 'arkiv-upload-thumb';
+            img.alt = file.name;
+            item.appendChild(img);
+
+            const name = document.createElement('div');
+            name.className = 'arkiv-upload-name';
+            name.textContent = file.name;
+            item.appendChild(name);
+
+            const barWrap = document.createElement('div');
+            barWrap.className = 'arkiv-upload-bar';
+            const bar = document.createElement('span');
+            barWrap.appendChild(bar);
+            item.appendChild(barWrap);
+
+            previewWrap.appendChild(item);
+
+            if (file.type.startsWith('image/')) {
+              const reader = new FileReader();
+              reader.onload = event => {
+                img.src = event.target.result;
+              };
+              reader.readAsDataURL(file);
+            }
+
+            fileMeta.push({
+              size: file.size || 0,
+              bar,
+            });
+          });
+        }
+
+        function updateProgress(loaded) {
+          let remaining = loaded;
+          fileMeta.forEach(meta => {
+            const size = meta.size || 0;
+            const used = Math.min(size, Math.max(0, remaining));
+            const percent = size ? Math.round((used / size) * 100) : 100;
+            meta.bar.style.width = `${percent}%`;
+            remaining -= used;
+          });
+        }
+
+        uploadInput.addEventListener('change', function () {
+          const files = Array.from(uploadInput.files || []);
+          buildPreview(files);
+        });
+
+        form.addEventListener('submit', function (event) {
+          if (!window.FormData || !window.XMLHttpRequest) {
+            return;
+          }
+
+          const files = Array.from(uploadInput.files || []);
+          if (files.length > maxFiles) {
+            event.preventDefault();
+            setStatus(`Du kan max uploade ${maxFiles} filer ad gangen.`);
+            return;
+          }
+
+          event.preventDefault();
+          form.classList.add('is-uploading');
+          setStatus('Uploader filer...');
+
+          const formData = new FormData(form);
+          formData.append('action', 'arkiv_submit');
+
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '<?php echo esc_url(admin_url('admin-ajax.php')); ?>');
+          xhr.responseType = 'json';
+
+          xhr.upload.addEventListener('progress', function (event) {
+            if (!event.lengthComputable) return;
+            updateProgress(event.loaded);
+          });
+
+          xhr.addEventListener('load', function () {
+            form.classList.remove('is-uploading');
+            if (xhr.status >= 200 && xhr.status < 300) {
+              const response = xhr.response || {};
+              if (response.success && response.data && response.data.redirect) {
+                window.location.href = response.data.redirect;
+                return;
+              }
+              if (response.success) {
+                window.location.href = window.location.href.split('?')[0];
+                return;
+              }
+            }
+            setStatus('Noget gik galt. Prøv igen.');
+          });
+
+          xhr.addEventListener('error', function () {
+            form.classList.remove('is-uploading');
+            setStatus('Noget gik galt. Prøv igen.');
+          });
+
+          xhr.send(formData);
+        });
+      })();
+    </script>
     <?php
     return ob_get_clean();
   }
@@ -352,6 +551,16 @@ class Arkiv_Submission_Plugin {
         'default' => 0,
       ]
     );
+
+    register_setting(
+      'arkiv_submission_settings',
+      self::OPTION_UPLOAD_REDIRECT_PAGE_ID,
+      [
+        'type' => 'integer',
+        'sanitize_callback' => 'absint',
+        'default' => 0,
+      ]
+    );
   }
 
   public function sanitize_checkbox($value) {
@@ -377,6 +586,7 @@ class Arkiv_Submission_Plugin {
     $cpt_slug = $this->get_post_type_slug();
     $tax_slug = $this->get_taxonomy_slug();
     $back_page_id = (int) get_option(self::OPTION_BACK_PAGE_ID, 0);
+    $upload_redirect_page_id = (int) get_option(self::OPTION_UPLOAD_REDIRECT_PAGE_ID, 0);
     ?>
     <div class="wrap">
       <h1>Arkiv Submission</h1>
@@ -417,6 +627,19 @@ class Arkiv_Submission_Plugin {
               ]);
               ?>
               <p class="description">Vælg siden som "Tilbage til arkivet" skal pege på.</p>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Upload færdig side</th>
+            <td>
+              <?php
+              wp_dropdown_pages([
+                'name' => self::OPTION_UPLOAD_REDIRECT_PAGE_ID,
+                'selected' => $upload_redirect_page_id,
+                'show_option_none' => '— Vælg side —',
+              ]);
+              ?>
+              <p class="description">Vælg siden brugerne sendes til når upload er færdig.</p>
             </td>
           </tr>
         </table>
@@ -588,6 +811,35 @@ JS;
     if (empty($_POST['arkiv_submit_nonce']) || !wp_verify_nonce($_POST['arkiv_submit_nonce'], 'arkiv_submit_action')) {
       $this->redirect_with('err');
     }
+    $result = $this->submit_post();
+    if (is_wp_error($result)) {
+      $this->redirect_with('err');
+    }
+    $this->redirect_with('ok');
+  }
+
+  public function handle_ajax_submit() {
+    if (!is_user_logged_in()) {
+      wp_send_json_error(['message' => 'Ikke logget ind.'], 403);
+    }
+
+    if (empty($_POST['arkiv_submit_nonce']) || !wp_verify_nonce($_POST['arkiv_submit_nonce'], 'arkiv_submit_action')) {
+      wp_send_json_error(['message' => 'Ugyldig anmodning.'], 400);
+    }
+
+    $result = $this->submit_post();
+    if (is_wp_error($result)) {
+      wp_send_json_error(['message' => 'Noget gik galt.'], 400);
+    }
+
+    $redirect = $this->get_success_redirect_url($this->get_fallback_redirect_url());
+    wp_send_json_success(['redirect' => $redirect]);
+  }
+
+  private function submit_post() {
+    if (!is_user_logged_in()) {
+      return new WP_Error('arkiv_not_logged_in', 'Not logged in');
+    }
 
     $title = isset($_POST['arkiv_title']) ? sanitize_text_field($_POST['arkiv_title']) : '';
     $content = isset($_POST['arkiv_content']) ? wp_kses_post($_POST['arkiv_content']) : '';
@@ -596,10 +848,9 @@ JS;
     $comments_enabled = !empty($_POST['arkiv_comments_enabled']);
 
     if (trim($title) === '' || trim(wp_strip_all_tags($content)) === '') {
-      $this->redirect_with('err');
+      return new WP_Error('arkiv_missing_fields', 'Missing fields');
     }
 
-    // Opret Arkiv-indlæg som Pending Review
     $post_id = wp_insert_post([
       'post_type' => $this->get_post_type_slug(),
       'post_title' => $title,
@@ -610,30 +861,25 @@ JS;
     ], true);
 
     if (is_wp_error($post_id) || !$post_id) {
-      $this->redirect_with('err');
+      return new WP_Error('arkiv_insert_failed', 'Insert failed');
     }
 
-    // Gem foreslået mappe (admin kan se det)
     if ($suggest !== '') {
       update_post_meta($post_id, self::META_SUGGESTED_FOLDER, $suggest);
     }
 
-    // Sæt valgt mappe-term hvis valgt
     if ($term_id > 0) {
       wp_set_object_terms($post_id, [$term_id], $this->get_taxonomy_slug(), false);
     }
 
-    // Håndter billeduploads
     $attachment_ids = $this->handle_images_upload($post_id);
 
-    // Sæt featured image som første upload
     if (!empty($attachment_ids)) {
       set_post_thumbnail($post_id, $attachment_ids[0]);
-      // Gem evt. alle ids som meta hvis du vil bruge dem i template
       update_post_meta($post_id, '_arkiv_gallery_ids', $attachment_ids);
     }
 
-    $this->redirect_with('ok');
+    return $post_id;
   }
 
   public function add_suggested_folder_metabox() {
@@ -677,7 +923,7 @@ JS;
     $count = is_array($files['name']) ? count($files['name']) : 0;
 
     // Begræns antal billeder (kan justeres)
-    $max = 10;
+    $max = 50;
     $count = min($count, $max);
 
     for ($i = 0; $i < $count; $i++) {
@@ -818,16 +1064,39 @@ JS;
   }
 
   private function redirect_with($status) {
-    $url = wp_get_referer();
-    if (!$url) {
-      $url = home_url('/');
+    $url = $this->get_fallback_redirect_url();
+
+    if ($status === 'ok') {
+      $redirect = $this->get_success_redirect_url($url);
+      wp_safe_redirect($redirect);
+      exit;
     }
 
     $url = remove_query_arg('arkiv_submit', $url);
     $url = add_query_arg('arkiv_submit', $status, $url);
-
     wp_safe_redirect($url);
     exit;
+  }
+
+  private function get_fallback_redirect_url() {
+    $url = wp_get_referer();
+    if (!$url) {
+      $url = home_url('/');
+    }
+    return $url;
+  }
+
+  private function get_success_redirect_url($fallback_url) {
+    $page_id = (int) get_option(self::OPTION_UPLOAD_REDIRECT_PAGE_ID, 0);
+    if ($page_id) {
+      $url = get_permalink($page_id);
+      if ($url) {
+        return $url;
+      }
+    }
+
+    $fallback_url = remove_query_arg('arkiv_submit', $fallback_url);
+    return add_query_arg('arkiv_submit', 'ok', $fallback_url);
   }
 
   public function use_mappe_template($template) {
