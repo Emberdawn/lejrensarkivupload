@@ -1350,10 +1350,12 @@ JS;
       exit;
     }
 
+    $new_title = isset($_POST['arkiv_edit_title']) ? sanitize_text_field(wp_unslash($_POST['arkiv_edit_title'])) : '';
     $new_content = isset($_POST['arkiv_edit_content']) ? wp_kses_post($_POST['arkiv_edit_content']) : '';
 
     wp_update_post([
       'ID' => $post_id,
+      'post_title' => $new_title,
       'post_content' => $new_content,
     ]);
 

@@ -63,6 +63,16 @@ if (have_posts()) : while (have_posts()) : the_post();
             <input type="hidden" name="arkiv_edit_post_id" value="<?php echo (int) $post_id; ?>">
             <input type="hidden" name="arkiv_delete_images" id="arkivDeleteImages" value="">
 
+            <label class="arkiv-edit-label" for="arkivEditTitle">Titel</label>
+            <input
+              id="arkivEditTitle"
+              class="arkiv-edit-title"
+              type="text"
+              name="arkiv_edit_title"
+              value="<?php echo esc_attr(get_the_title($post_id)); ?>"
+              required
+            >
+
             <label class="arkiv-edit-label" for="arkivEditContent">Historie</label>
             <?php
             wp_editor(
@@ -282,6 +292,18 @@ if (have_posts()) : while (have_posts()) : the_post();
       font-size: 15px;
       line-height: 1.6;
       background: #fff;
+    }
+
+    .arkiv-edit-title {
+      width: 100%;
+      max-width: 100%;
+      border-radius: 12px;
+      border: 1px solid #d9d9d9;
+      padding: 10px 12px;
+      font-size: 16px;
+      line-height: 1.4;
+      background: #fff;
+      margin-bottom: 6px;
     }
 
     .arkiv-edit-label {
