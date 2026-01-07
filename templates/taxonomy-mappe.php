@@ -8,20 +8,8 @@ get_header();
       display: inline-flex; padding: 10px 14px; border-radius: 999px;
       background: #f2f2f2; text-decoration: none;
     }
-    .masonry { column-count: 3; column-gap: 16px; }
-    @media (max-width: 1024px) { .masonry { column-count: 2; } }
-    @media (max-width: 640px)  { .masonry { column-count: 1; } }
-    .tile { break-inside: avoid; margin: 0 0 16px; display: block; text-decoration: none; color: inherit; }
-    .tile img { width: 100%; height: auto; display: block; border-radius: 12px; }
-    .tile h3 {
-      margin: 8px 0 0;
-      font-size: 16px;
-      line-height: 1.4;
-      max-height: calc(1.4em * 3);
-      overflow: hidden;
-      display: -webkit-box;
-      -webkit-line-clamp: 3;
-      -webkit-box-orient: vertical;
+    .mappe-knapper {
+      margin-top: 16px;
     }
   </style>
 
@@ -40,11 +28,19 @@ get_header();
 
   <?php the_archive_title('<h1>', '</h1>'); ?>
 
-  <div class="masonry">
+  <div class="mappe-knapper">
     <?php if (have_posts()) : while (have_posts()) : the_post(); ?>
-      <a class="tile" href="<?php the_permalink(); ?>">
-        <?php if (has_post_thumbnail()) { the_post_thumbnail('large'); } ?>
-        <h3><?php the_title(); ?></h3>
+      <a class="mappe-knap" href="<?php the_permalink(); ?>">
+        <?php if (has_post_thumbnail()) { ?>
+          <?php the_post_thumbnail('medium', ['class' => 'mappe-knap__image', 'loading' => 'lazy']); ?>
+        <?php } ?>
+        <span class="mappe-knap__text">
+          <span class="mappe-knap__title"><?php the_title(); ?></span>
+          <?php $excerpt = trim(get_the_excerpt()); ?>
+          <?php if ($excerpt !== '') : ?>
+            <span class="mappe-knap__desc"><?php echo esc_html($excerpt); ?></span>
+          <?php endif; ?>
+        </span>
       </a>
     <?php endwhile; else: ?>
       <p>Der er ingen indlæg i denne mappe endnu.</p>
