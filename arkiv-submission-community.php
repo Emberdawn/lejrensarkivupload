@@ -694,7 +694,7 @@ class Arkiv_Submission_Plugin {
     );
 
     register_setting(
-      'arkiv_submission_settings',
+      'arkiv_submission_admin_bar_settings',
       self::OPTION_ADMIN_BAR_ROLES,
       [
         'type' => 'array',
@@ -902,7 +902,7 @@ class Arkiv_Submission_Plugin {
       <h1>Admin bar</h1>
       <p>Vælg hvilke roller der må se den øverste WordPress værktøjslinje.</p>
       <form method="post" action="options.php">
-        <?php settings_fields('arkiv_submission_settings'); ?>
+        <?php settings_fields('arkiv_submission_admin_bar_settings'); ?>
         <table class="form-table" role="presentation">
           <tbody>
             <?php foreach ($roles as $role_key => $role_data) : ?>
