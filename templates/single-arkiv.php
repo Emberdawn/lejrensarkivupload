@@ -64,7 +64,18 @@ if (have_posts()) : while (have_posts()) : the_post();
             <input type="hidden" name="arkiv_delete_images" id="arkivDeleteImages" value="">
 
             <label class="arkiv-edit-label" for="arkivEditContent">Historie</label>
-            <textarea id="arkivEditContent" name="arkiv_edit_content" rows="10" required><?php echo esc_textarea(wp_strip_all_tags(get_post_field('post_content', $post_id))); ?></textarea>
+            <?php
+            wp_editor(
+              get_post_field('post_content', $post_id),
+              'arkivEditContent',
+              [
+                'textarea_name' => 'arkiv_edit_content',
+                'textarea_rows' => 10,
+                'media_buttons' => false,
+                'teeny' => true,
+              ]
+            );
+            ?>
 
             <div class="arkiv-edit-images">
               <h2>Billeder</h2>
