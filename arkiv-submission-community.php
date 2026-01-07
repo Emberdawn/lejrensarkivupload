@@ -105,7 +105,10 @@ class Arkiv_Submission_Plugin {
         <input id="arkivUploadImages" type="file" name="arkiv_images[]" accept="image/*" multiple data-max-files="50">
         <br><small>Tip: Vælg gerne 1–50 billeder. Første billede bruges som forsidebillede.</small>
         <div class="arkiv-upload-preview" id="arkivUploadPreview"></div>
-        <p class="arkiv-upload-status" id="arkivUploadStatus" aria-live="polite"></p>
+        <p class="arkiv-upload-status" id="arkivUploadStatus" aria-live="polite">
+          <span class="arkiv-upload-status-text"></span>
+          <span class="arkiv-upload-spinner" aria-hidden="true"></span>
+        </p>
       </p>
 
       <p>
@@ -187,11 +190,34 @@ class Arkiv_Submission_Plugin {
         margin-top: 8px;
         font-size: 13px;
         color: #555;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
       }
 
       .arkiv-submit-form.is-uploading button[type="submit"] {
         opacity: 0.6;
         pointer-events: none;
+      }
+
+      .arkiv-upload-spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(17, 17, 17, 0.2);
+        border-top-color: rgba(17, 17, 17, 0.7);
+        border-radius: 50%;
+        animation: arkiv-spin 0.8s linear infinite;
+        display: none;
+      }
+
+      .arkiv-upload-status.is-busy .arkiv-upload-spinner {
+        display: inline-block;
+      }
+
+      @keyframes arkiv-spin {
+        to {
+          transform: rotate(360deg);
+        }
       }
     </style>
     <script>
@@ -200,13 +226,15 @@ class Arkiv_Submission_Plugin {
         const uploadInput = document.getElementById('arkivUploadImages');
         const previewWrap = document.getElementById('arkivUploadPreview');
         const statusEl = document.getElementById('arkivUploadStatus');
-        if (!form || !uploadInput || !previewWrap || !statusEl) return;
+        const statusText = statusEl ? statusEl.querySelector('.arkiv-upload-status-text') : null;
+        if (!form || !uploadInput || !previewWrap || !statusEl || !statusText) return;
 
         const maxFiles = parseInt(uploadInput.dataset.maxFiles, 10) || 50;
         let fileMeta = [];
 
-        function setStatus(message) {
-          statusEl.textContent = message || '';
+        function setStatus(message, busy = false) {
+          statusText.textContent = message || '';
+          statusEl.classList.toggle('is-busy', Boolean(busy));
         }
 
         function buildPreview(files) {
@@ -336,7 +364,7 @@ class Arkiv_Submission_Plugin {
 
           event.preventDefault();
           form.classList.add('is-uploading');
-          setStatus('Opretter opslag...');
+          setStatus('Opretter opslag...', true);
 
           const formData = new FormData(form);
           formData.delete('arkiv_images[]');
@@ -383,7 +411,7 @@ class Arkiv_Submission_Plugin {
               return;
             }
 
-            setStatus('Færdig');
+            setStatus('Arbejder...', true);
             window.location.href = redirectUrl;
           });
 
