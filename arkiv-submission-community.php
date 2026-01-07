@@ -1133,7 +1133,10 @@ JS;
   }
 
   public function maybe_handle_edit() {
-    if (empty($_POST['arkiv_edit_btn'])) {
+    $is_edit = !empty($_POST['arkiv_edit_btn']);
+    $is_delete = !empty($_POST['arkiv_delete_btn']);
+
+    if (!$is_edit && !$is_delete) {
       return;
     }
 
@@ -1157,6 +1160,14 @@ JS;
 
     if ((int) $post->post_author !== get_current_user_id()) {
       return;
+    }
+
+    if ($is_delete) {
+      $this->delete_post_with_images($post_id);
+      $back_page_id = (int) get_option(self::OPTION_BACK_PAGE_ID, 0);
+      $back_url = $back_page_id ? get_permalink($back_page_id) : home_url('/wordpress_D/arkiv/');
+      wp_safe_redirect($back_url);
+      exit;
     }
 
     $new_content = isset($_POST['arkiv_edit_content']) ? wp_kses_post($_POST['arkiv_edit_content']) : '';
@@ -1234,6 +1245,34 @@ JS;
 
     wp_safe_redirect(get_permalink($post_id));
     exit;
+  }
+
+  private function delete_post_with_images($post_id) {
+    $gallery_ids = get_post_meta($post_id, '_arkiv_gallery_ids', true);
+    if (!is_array($gallery_ids)) {
+      $gallery_ids = [];
+    }
+
+    $featured_id = get_post_thumbnail_id($post_id);
+    $attached_ids = get_posts([
+      'post_type' => 'attachment',
+      'post_status' => 'inherit',
+      'posts_per_page' => -1,
+      'fields' => 'ids',
+      'post_parent' => $post_id,
+    ]);
+
+    $attachment_ids = array_filter(array_unique(array_merge(
+      $gallery_ids,
+      $featured_id ? [(int) $featured_id] : [],
+      is_array($attached_ids) ? $attached_ids : []
+    )));
+
+    foreach ($attachment_ids as $attachment_id) {
+      wp_delete_attachment((int) $attachment_id, true);
+    }
+
+    wp_delete_post($post_id, true);
   }
 
   private function redirect_with($status) {

@@ -116,6 +116,7 @@ if (have_posts()) : while (have_posts()) : the_post();
             <div class="arkiv-edit-actions">
               <button type="submit" name="arkiv_edit_btn" value="1" class="arkiv-edit-save">Gem</button>
               <a class="arkiv-edit-cancel" href="<?php echo esc_url(get_permalink($post_id)); ?>">Annuler</a>
+              <button type="submit" name="arkiv_delete_btn" value="1" class="arkiv-edit-delete">Slet indlæg</button>
             </div>
           </form>
         </section>
@@ -373,6 +374,17 @@ if (have_posts()) : while (have_posts()) : the_post();
       font-size: 15px;
     }
 
+    .arkiv-edit-delete {
+      margin-left: auto;
+      padding: 10px 18px;
+      border-radius: 999px;
+      background: #d63638;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
     /* ===== Arkiv Lightbox ===== */
     .arkiv-lightbox {
       position: fixed;
@@ -540,6 +552,7 @@ endwhile; endif;
   const deleteInput = document.getElementById('arkivDeleteImages');
   const uploadInput = document.getElementById('arkivEditImages');
   const previewWrap = document.getElementById('arkivEditPreview');
+  const deletePostButton = document.querySelector('.arkiv-edit-delete');
 
   if (deleteButtons.length && deleteInput) {
     deleteButtons.forEach(button => {
@@ -579,6 +592,15 @@ endwhile; endif;
         };
         reader.readAsDataURL(file);
       });
+    });
+  }
+
+  if (deletePostButton) {
+    deletePostButton.addEventListener('click', function (event) {
+      const confirmed = window.confirm('Vil du virkelig slette indlægget?');
+      if (!confirmed) {
+        event.preventDefault();
+      }
     });
   }
 
