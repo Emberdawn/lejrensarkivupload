@@ -74,6 +74,7 @@ class Arkiv_Submission_Plugin {
 
     ob_start();
     echo $msg;
+    wp_enqueue_editor();
     ?>
     <form class="arkiv-submit-form" method="post" enctype="multipart/form-data" style="max-width:700px;">
       <?php wp_nonce_field('arkiv_submit_action', 'arkiv_submit_nonce'); ?>
@@ -85,7 +86,14 @@ class Arkiv_Submission_Plugin {
 
       <p>
         <label><strong>Historie</strong></label><br>
-        <textarea name="arkiv_content" required rows="8" style="width:100%;padding:8px;"></textarea>
+        <?php
+        wp_editor('', 'arkiv_content_editor', [
+          'textarea_name' => 'arkiv_content',
+          'media_buttons' => false,
+          'teeny' => true,
+          'editor_height' => 240,
+        ]);
+        ?>
       </p>
 
       <p>
