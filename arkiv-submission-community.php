@@ -21,7 +21,6 @@ class Arkiv_Submission_Plugin {
   const OPTION_TAX_SLUG = 'arkiv_tax_slug';
   const OPTION_BACK_PAGE_ID = 'arkiv_back_page_id';
   const OPTION_UPLOAD_REDIRECT_PAGE_ID = 'arkiv_upload_redirect_page_id';
-  const OPTION_ADMIN_BAR_ROLES = 'arkiv_admin_bar_roles';
 
   private $mappe_settings_page_hook = '';
 
@@ -42,7 +41,6 @@ class Arkiv_Submission_Plugin {
     add_filter('template_include', [$this, 'use_mappe_template'], 99);
     add_action('pre_get_posts', [$this, 'restrict_mappe_query_to_arkiv']);
     add_action('pre_comment_on_post', [$this, 'block_anonymous_comments']);
-    add_filter('show_admin_bar', [$this, 'filter_show_admin_bar'], 10, 1);
   }
 
   public function render_shortcode($atts) {
@@ -615,15 +613,6 @@ class Arkiv_Submission_Plugin {
       80
     );
 
-    add_submenu_page(
-      'arkiv-submission-settings',
-      'Admin bar',
-      'Admin bar',
-      'manage_options',
-      'arkiv-admin-bar-settings',
-      [$this, 'render_admin_bar_settings_page']
-    );
-
     $this->mappe_settings_page_hook = add_submenu_page(
       'arkiv-submission-settings',
       'Mappe knapper',
@@ -684,16 +673,6 @@ class Arkiv_Submission_Plugin {
         'default' => 0,
       ]
     );
-
-    register_setting(
-      'arkiv_submission_settings',
-      self::OPTION_ADMIN_BAR_ROLES,
-      [
-        'type' => 'array',
-        'sanitize_callback' => [$this, 'sanitize_admin_bar_roles'],
-        'default' => [],
-      ]
-    );
   }
 
   public function sanitize_checkbox($value) {
@@ -708,49 +687,6 @@ class Arkiv_Submission_Plugin {
   public function sanitize_tax_slug($value) {
     $value = sanitize_key($value);
     return $value !== '' ? $value : self::TAX;
-  }
-
-  public function sanitize_admin_bar_roles($value) {
-    if (!is_array($value)) {
-      return [];
-    }
-
-    $roles = wp_roles();
-    $available_roles = $roles ? array_keys($roles->roles) : [];
-    $sanitized = [];
-
-    foreach ($value as $role) {
-      $role = sanitize_key($role);
-      if ($role !== '' && in_array($role, $available_roles, true)) {
-        $sanitized[] = $role;
-      }
-    }
-
-    return array_values(array_unique($sanitized));
-  }
-
-  public function filter_show_admin_bar($show) {
-    if (!is_user_logged_in()) {
-      return $show;
-    }
-
-    $allowed_roles = get_option(self::OPTION_ADMIN_BAR_ROLES, []);
-    if (empty($allowed_roles) || !is_array($allowed_roles)) {
-      return $show;
-    }
-
-    $user = wp_get_current_user();
-    if (!$user || empty($user->roles)) {
-      return $show;
-    }
-
-    foreach ($user->roles as $role) {
-      if (in_array($role, $allowed_roles, true)) {
-        return true;
-      }
-    }
-
-    return false;
   }
 
   public function render_settings_page() {
@@ -886,52 +822,6 @@ class Arkiv_Submission_Plugin {
           </tbody>
         </table>
         <?php submit_button('Gem ændringer'); ?>
-      </form>
-    </div>
-    <?php
-  }
-
-  public function render_admin_bar_settings_page() {
-    if (!current_user_can('manage_options')) {
-      return;
-    }
-
-    $roles = wp_roles();
-    $available_roles = $roles ? $roles->roles : [];
-    $allowed_roles = get_option(self::OPTION_ADMIN_BAR_ROLES, []);
-    $allowed_roles = is_array($allowed_roles) ? $allowed_roles : [];
-    ?>
-    <div class="wrap">
-      <h1>Admin bar</h1>
-      <p>Vælg hvilke roller der må se den øverste WordPress værktøjslinje.</p>
-      <form method="post" action="options.php">
-        <?php settings_fields('arkiv_submission_settings'); ?>
-        <table class="form-table" role="presentation">
-          <?php if (!empty($available_roles)) : ?>
-            <?php foreach ($available_roles as $role_key => $role_data) : ?>
-              <tr>
-                <th scope="row"><?php echo esc_html($role_data['name']); ?></th>
-                <td>
-                  <label>
-                    <input
-                      type="checkbox"
-                      name="<?php echo esc_attr(self::OPTION_ADMIN_BAR_ROLES); ?>[]"
-                      value="<?php echo esc_attr($role_key); ?>"
-                      <?php checked(in_array($role_key, $allowed_roles, true)); ?>
-                    >
-                    Må se værktøjslinjen
-                  </label>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-          <?php else : ?>
-            <tr>
-              <th scope="row">Roller</th>
-              <td>Ingen roller fundet.</td>
-            </tr>
-          <?php endif; ?>
-        </table>
-        <?php submit_button(); ?>
       </form>
     </div>
     <?php
