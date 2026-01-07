@@ -21,6 +21,7 @@ class Arkiv_Submission_Plugin {
   const OPTION_TAX_SLUG = 'arkiv_tax_slug';
   const OPTION_BACK_PAGE_ID = 'arkiv_back_page_id';
   const OPTION_UPLOAD_REDIRECT_PAGE_ID = 'arkiv_upload_redirect_page_id';
+  const OPTION_ADMIN_BAR_ROLES = 'arkiv_admin_bar_roles';
 
   private $mappe_settings_page_hook = '';
 
@@ -41,6 +42,7 @@ class Arkiv_Submission_Plugin {
     add_filter('template_include', [$this, 'use_mappe_template'], 99);
     add_action('pre_get_posts', [$this, 'restrict_mappe_query_to_arkiv']);
     add_action('pre_comment_on_post', [$this, 'block_anonymous_comments']);
+    add_filter('show_admin_bar', [$this, 'maybe_hide_admin_bar']);
   }
 
   public function render_shortcode($atts) {
@@ -623,6 +625,15 @@ class Arkiv_Submission_Plugin {
       'arkiv-mappe-settings',
       [$this, 'render_mappe_settings_page']
     );
+
+    add_submenu_page(
+      'arkiv-submission-settings',
+      'Admin bar',
+      'Admin bar',
+      'manage_options',
+      'arkiv-admin-bar-settings',
+      [$this, 'render_admin_bar_settings_page']
+    );
   }
 
   public function register_settings() {
@@ -675,6 +686,16 @@ class Arkiv_Submission_Plugin {
         'default' => 0,
       ]
     );
+
+    register_setting(
+      'arkiv_submission_settings',
+      self::OPTION_ADMIN_BAR_ROLES,
+      [
+        'type' => 'array',
+        'sanitize_callback' => [$this, 'sanitize_admin_bar_roles'],
+        'default' => [],
+      ]
+    );
   }
 
   public function sanitize_checkbox($value) {
@@ -689,6 +710,40 @@ class Arkiv_Submission_Plugin {
   public function sanitize_tax_slug($value) {
     $value = sanitize_key($value);
     return $value !== '' ? $value : self::TAX;
+  }
+
+  public function sanitize_admin_bar_roles($value) {
+    if (!is_array($value)) {
+      return [];
+    }
+
+    $roles = array_keys(get_editable_roles());
+    $value = array_map('sanitize_key', $value);
+    return array_values(array_intersect($roles, $value));
+  }
+
+  public function maybe_hide_admin_bar($show) {
+    if (!is_user_logged_in()) {
+      return $show;
+    }
+
+    $allowed_roles = $this->get_allowed_admin_bar_roles();
+    if (empty($allowed_roles)) {
+      return false;
+    }
+
+    $user = wp_get_current_user();
+    if (empty($user->roles)) {
+      return $show;
+    }
+
+    foreach ($user->roles as $role) {
+      if (in_array($role, $allowed_roles, true)) {
+        return $show;
+      }
+    }
+
+    return false;
   }
 
   public function render_settings_page() {
@@ -829,6 +884,45 @@ class Arkiv_Submission_Plugin {
     <?php
   }
 
+  public function render_admin_bar_settings_page() {
+    if (!current_user_can('manage_options')) {
+      return;
+    }
+
+    $roles = get_editable_roles();
+    $allowed_roles = $this->get_allowed_admin_bar_roles();
+    ?>
+    <div class="wrap">
+      <h1>Admin bar</h1>
+      <p>Vælg hvilke roller der må se den øverste WordPress værktøjslinje.</p>
+      <form method="post" action="options.php">
+        <?php settings_fields('arkiv_submission_settings'); ?>
+        <table class="form-table" role="presentation">
+          <tbody>
+            <?php foreach ($roles as $role_key => $role_data) : ?>
+              <tr>
+                <th scope="row"><?php echo esc_html($role_data['name']); ?></th>
+                <td>
+                  <label>
+                    <input
+                      type="checkbox"
+                      name="<?php echo esc_attr(self::OPTION_ADMIN_BAR_ROLES); ?>[]"
+                      value="<?php echo esc_attr($role_key); ?>"
+                      <?php checked(in_array($role_key, $allowed_roles, true)); ?>
+                    >
+                    Må se admin bar
+                  </label>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+        <?php submit_button(); ?>
+      </form>
+    </div>
+    <?php
+  }
+
   public function maybe_handle_mappe_settings_save() {
     if (empty($_POST['arkiv_mappe_settings_submit'])) {
       return;
@@ -912,6 +1006,19 @@ class Arkiv_Submission_Plugin {
       });
     });
 JS;
+  }
+
+  private function get_allowed_admin_bar_roles() {
+    $saved_roles = get_option(self::OPTION_ADMIN_BAR_ROLES, null);
+    if ($saved_roles === null) {
+      return array_keys(get_editable_roles());
+    }
+
+    if (!is_array($saved_roles)) {
+      return [];
+    }
+
+    return $saved_roles;
   }
 
   public function maybe_handle_submit() {
