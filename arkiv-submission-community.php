@@ -43,6 +43,8 @@ class Arkiv_Submission_Plugin {
     add_action('pre_get_posts', [$this, 'restrict_mappe_query_to_arkiv']);
     add_action('pre_comment_on_post', [$this, 'block_anonymous_comments']);
     add_filter('show_admin_bar', [$this, 'maybe_hide_admin_bar']);
+    add_action('before_delete_post', [$this, 'delete_post_images_on_admin_delete']);
+    add_action('wp_trash_post', [$this, 'delete_post_images_on_admin_delete']);
   }
 
   public static function activate() {
@@ -1393,6 +1395,11 @@ JS;
   }
 
   private function delete_post_with_images($post_id) {
+    $this->delete_post_images($post_id);
+    wp_delete_post($post_id, true);
+  }
+
+  private function delete_post_images($post_id) {
     $gallery_ids = get_post_meta($post_id, '_arkiv_gallery_ids', true);
     if (!is_array($gallery_ids)) {
       $gallery_ids = [];
@@ -1416,8 +1423,14 @@ JS;
     foreach ($attachment_ids as $attachment_id) {
       wp_delete_attachment((int) $attachment_id, true);
     }
+  }
 
-    wp_delete_post($post_id, true);
+  public function delete_post_images_on_admin_delete($post_id) {
+    if (get_post_type($post_id) !== $this->get_post_type_slug()) {
+      return;
+    }
+
+    $this->delete_post_images($post_id);
   }
 
   private function redirect_with($status) {
