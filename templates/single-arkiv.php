@@ -25,6 +25,10 @@ if (have_posts()) : while (have_posts()) : the_post();
   if (!is_array($gallery_ids)) {
     $gallery_ids = [];
   }
+  $pdf_ids = get_post_meta($post_id, '_arkiv_pdf_ids', true);
+  if (!is_array($pdf_ids)) {
+    $pdf_ids = [];
+  }
   $thumbnail_id = get_post_thumbnail_id($post_id);
   $featured_selected = ($thumbnail_id && in_array((int) $thumbnail_id, $gallery_ids, true)) ? (int) $thumbnail_id : 'auto';
   ?>
@@ -67,6 +71,7 @@ if (have_posts()) : while (have_posts()) : the_post();
             <?php wp_nonce_field('arkiv_edit_action', 'arkiv_edit_nonce'); ?>
             <input type="hidden" name="arkiv_edit_post_id" value="<?php echo (int) $post_id; ?>">
             <input type="hidden" name="arkiv_delete_images" id="arkivDeleteImages" value="">
+            <input type="hidden" name="arkiv_delete_pdfs" id="arkivDeletePdfs" value="">
 
             <label class="arkiv-edit-label" for="arkivEditTitle">Titel</label>
             <input
@@ -125,10 +130,43 @@ if (have_posts()) : while (have_posts()) : the_post();
               <?php endif; ?>
             </div>
 
+            <div class="arkiv-edit-images" style="margin-top:18px;">
+              <h2>PDF-dokumenter</h2>
+              <?php if (!empty($pdf_ids)) : ?>
+                <div class="arkiv-edit-grid">
+                  <?php foreach ($pdf_ids as $att_id) :
+                    $thumb = wp_get_attachment_image($att_id, 'medium', false, ['class' => 'arkiv-pdf-thumb']);
+                    if (!$thumb) {
+                      $icon = wp_mime_type_icon($att_id);
+                      $thumb = $icon ? '<img class="arkiv-pdf-thumb" src="' . esc_url($icon) . '" alt="">' : '';
+                    }
+                    if (!$thumb) continue;
+                    $title = get_the_title($att_id);
+                    ?>
+                    <div class="arkiv-edit-tile" data-pdf-id="<?php echo (int) $att_id; ?>">
+                      <?php echo $thumb; ?>
+                      <?php if ($title !== '') : ?>
+                        <div class="arkiv-edit-caption"><?php echo esc_html($title); ?></div>
+                      <?php endif; ?>
+                      <button class="arkiv-delete-pdf" type="button">Slet</button>
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+              <?php else : ?>
+                <p class="arkiv-edit-empty">Ingen PDF'er endnu.</p>
+              <?php endif; ?>
+            </div>
+
             <div class="arkiv-edit-upload">
               <label class="arkiv-edit-label" for="arkivEditImages">Upload flere billeder</label>
               <input id="arkivEditImages" type="file" name="arkiv_images[]" accept="image/*" multiple>
               <div class="arkiv-edit-preview" id="arkivEditPreview"></div>
+            </div>
+
+            <div class="arkiv-edit-upload">
+              <label class="arkiv-edit-label" for="arkivEditPdfs">Upload flere PDF'er</label>
+              <input id="arkivEditPdfs" type="file" name="arkiv_pdfs[]" accept="application/pdf" multiple>
+              <div class="arkiv-edit-preview" id="arkivEditPdfPreview"></div>
             </div>
 
             <div class="arkiv-edit-featured">
@@ -176,7 +214,7 @@ if (have_posts()) : while (have_posts()) : the_post();
               $full  = wp_get_attachment_image_url($att_id, 'full');
               if (!$thumb || !$full) continue;
               ?>
-              <a class="arkiv-tile arkiv-lightbox-trigger" href="<?php echo esc_url($full); ?>" data-index="<?php echo (int)$i; ?>">
+              <a class="arkiv-tile arkiv-lightbox-trigger" href="<?php echo esc_url($full); ?>" data-index="<?php echo (int)$i; ?>" data-type="image" data-src="<?php echo esc_url($full); ?>">
                 <?php echo $thumb; ?>
               </a>
             <?php endforeach; ?>
@@ -184,6 +222,33 @@ if (have_posts()) : while (have_posts()) : the_post();
 
           <p class="arkiv-note">
             Klik på et billede for at åbne det i fuld størrelse.
+          </p>
+        </section>
+      <?php endif; ?>
+
+      <?php if (!$is_edit && !empty($pdf_ids)) : ?>
+        <section class="arkiv-gallery">
+          <h2>Dokumenter</h2>
+
+          <div class="arkiv-grid">
+            <?php foreach ($pdf_ids as $i => $att_id) :
+              $thumb = wp_get_attachment_image($att_id, 'medium_large', false, ['class' => 'arkiv-img']);
+              if (!$thumb) {
+                $icon = wp_mime_type_icon($att_id);
+                $thumb = $icon ? '<img class="arkiv-img" src="' . esc_url($icon) . '" alt="">' : '';
+              }
+              if (!$thumb) continue;
+              $pdf_url = wp_get_attachment_url($att_id);
+              if (!$pdf_url) continue;
+              ?>
+              <a class="arkiv-tile arkiv-lightbox-trigger" href="<?php echo esc_url($pdf_url); ?>" data-index="<?php echo (int) (count($gallery_ids) + $i); ?>" data-type="pdf" data-src="<?php echo esc_url($pdf_url); ?>">
+                <?php echo $thumb; ?>
+              </a>
+            <?php endforeach; ?>
+          </div>
+
+          <p class="arkiv-note">
+            Klik på et dokument for at åbne det.
           </p>
         </section>
       <?php endif; ?>
@@ -250,7 +315,10 @@ if (have_posts()) : while (have_posts()) : the_post();
     <div class="arkiv-lightbox" id="arkivLightbox" aria-hidden="true">
       <button class="arkiv-lightbox-close" type="button" aria-label="Luk">&times;</button>
       <button class="arkiv-lightbox-nav prev" type="button" aria-label="Forrige">&#10094;</button>
-      <img src="" alt="">
+      <div class="arkiv-lightbox-media">
+        <img src="" alt="">
+        <iframe class="arkiv-lightbox-pdf" title="PDF" loading="lazy"></iframe>
+      </div>
       <button class="arkiv-lightbox-nav next" type="button" aria-label="Næste">&#10095;</button>
       <div class="arkiv-lightbox-counter" aria-live="polite"></div>
     </div>
@@ -362,6 +430,33 @@ if (have_posts()) : while (have_posts()) : the_post();
       cursor: pointer;
     }
 
+    .arkiv-delete-pdf {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(17,17,17,.9);
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .arkiv-pdf-thumb {
+      width: 100%;
+      height: auto;
+      border-radius: 12px;
+      display: block;
+    }
+
+    .arkiv-edit-caption {
+      margin-top: 6px;
+      font-size: 12px;
+      opacity: 0.8;
+      word-break: break-word;
+    }
+
     .arkiv-edit-empty {
       margin: 8px 0 0;
       opacity: .7;
@@ -399,6 +494,15 @@ if (have_posts()) : while (have_posts()) : the_post();
       width: 100%;
       height: auto;
       border-radius: 12px;
+    }
+
+    .arkiv-edit-pdf {
+      padding: 10px;
+      border-radius: 10px;
+      background: #fff;
+      border: 1px dashed #d9d9d9;
+      font-size: 12px;
+      word-break: break-word;
     }
 
     .arkiv-edit-actions {
@@ -454,6 +558,15 @@ if (have_posts()) : while (have_posts()) : the_post();
       display: flex;
     }
 
+    .arkiv-lightbox-media {
+      position: relative;
+      max-width: 92vw;
+      max-height: 92vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
     .arkiv-lightbox img {
       max-width: 92vw;
       max-height: 92vh;
@@ -461,6 +574,16 @@ if (have_posts()) : while (have_posts()) : the_post();
       box-shadow: 0 20px 60px rgba(0,0,0,.5);
       cursor: zoom-in;
       transition: transform 0.15s ease;
+    }
+
+    .arkiv-lightbox-pdf {
+      width: 92vw;
+      height: 92vh;
+      border: none;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.5);
+      background: #111;
+      display: none;
     }
 
     .arkiv-lightbox-close {
@@ -603,8 +726,12 @@ endwhile; endif;
 (function () {
   const deleteButtons = document.querySelectorAll('.arkiv-delete-image');
   const deleteInput = document.getElementById('arkivDeleteImages');
+  const deletePdfButtons = document.querySelectorAll('.arkiv-delete-pdf');
+  const deletePdfInput = document.getElementById('arkivDeletePdfs');
   const uploadInput = document.getElementById('arkivEditImages');
   const previewWrap = document.getElementById('arkivEditPreview');
+  const pdfUploadInput = document.getElementById('arkivEditPdfs');
+  const pdfPreviewWrap = document.getElementById('arkivEditPdfPreview');
   const deletePostButton = document.querySelector('.arkiv-edit-delete');
 
   if (deleteButtons.length && deleteInput) {
@@ -631,7 +758,7 @@ endwhile; endif;
   if (uploadInput && previewWrap) {
     uploadInput.addEventListener('change', function () {
       previewWrap.innerHTML = '';
-      const files = Array.from(uploadInput.files || []);
+      const files = Array.from(uploadInput.files || []).filter(file => file.type.startsWith('image/'));
       files.forEach(file => {
         if (!file.type.startsWith('image/')) {
           return;
@@ -644,6 +771,40 @@ endwhile; endif;
           img.src = event.target.result;
         };
         reader.readAsDataURL(file);
+      });
+    });
+  }
+
+  if (deletePdfButtons.length && deletePdfInput) {
+    deletePdfButtons.forEach(button => {
+      button.addEventListener('click', function () {
+        const tile = this.closest('.arkiv-edit-tile');
+        if (!tile) return;
+        const attId = tile.dataset.pdfId;
+        if (!attId) return;
+        const confirmDelete = window.confirm('vil du virkelig slette pdf’en! ja/nej');
+        if (!confirmDelete) return;
+        tile.classList.add('is-deleting');
+        tile.style.opacity = '0.4';
+        const current = deletePdfInput.value ? deletePdfInput.value.split(',') : [];
+        if (!current.includes(attId)) {
+          current.push(attId);
+          deletePdfInput.value = current.join(',');
+        }
+        tile.remove();
+      });
+    });
+  }
+
+  if (pdfUploadInput && pdfPreviewWrap) {
+    pdfUploadInput.addEventListener('change', function () {
+      pdfPreviewWrap.innerHTML = '';
+      const files = Array.from(pdfUploadInput.files || []).filter(file => file.type === 'application/pdf');
+      files.forEach(file => {
+        const item = document.createElement('div');
+        item.className = 'arkiv-edit-pdf';
+        item.textContent = file.name;
+        pdfPreviewWrap.appendChild(item);
       });
     });
   }
@@ -661,16 +822,24 @@ endwhile; endif;
   if (!lightbox) return;
 
   const img = lightbox.querySelector('img');
+  const pdfFrame = lightbox.querySelector('.arkiv-lightbox-pdf');
   const closeBtn = lightbox.querySelector('.arkiv-lightbox-close');
   const prevBtn = lightbox.querySelector('.arkiv-lightbox-nav.prev');
   const nextBtn = lightbox.querySelector('.arkiv-lightbox-nav.next');
   const counter = lightbox.querySelector('.arkiv-lightbox-counter');
 
   const triggers = Array.from(document.querySelectorAll('.arkiv-lightbox-trigger'));
-  const imageUrls = triggers.map(link => link.getAttribute('href'));
-  const total = imageUrls.length;
+  const items = triggers.map((link, index) => {
+    link.dataset.index = index;
+    return {
+      type: link.dataset.type || 'image',
+      src: link.dataset.src || link.getAttribute('href'),
+    };
+  });
+  const total = items.length;
 
   let currentIndex = 0;
+  let currentType = 'image';
   let isZoomed = false;
   let isDragging = false;
   let dragStartX = 0;
@@ -713,6 +882,9 @@ endwhile; endif;
     lightbox.classList.remove('active');
     lightbox.setAttribute('aria-hidden', 'true');
     img.src = '';
+    if (pdfFrame) {
+      pdfFrame.src = '';
+    }
     document.body.style.overflow = '';
     resetZoom();
   }
@@ -735,23 +907,44 @@ endwhile; endif;
     lockNav();
     const nextIndex = wrapIndex(index);
     currentIndex = nextIndex;
-    const url = imageUrls[currentIndex];
-    img.onerror = () => {
-      if (total <= 1) {
-        closeLightbox();
-        return;
+    const item = items[currentIndex];
+    currentType = item.type;
+    if (currentType === 'pdf' && pdfFrame) {
+      img.style.display = 'none';
+      pdfFrame.style.display = 'block';
+      pdfFrame.src = item.src;
+      lightbox.classList.add('is-pdf');
+    } else {
+      img.style.display = 'block';
+      if (pdfFrame) {
+        pdfFrame.style.display = 'none';
+        pdfFrame.src = '';
       }
-      show(currentIndex + 1);
-    };
-    img.src = url;
+      lightbox.classList.remove('is-pdf');
+      img.onerror = () => {
+        if (total <= 1) {
+          closeLightbox();
+          return;
+        }
+        show(currentIndex + 1);
+      };
+      img.src = item.src;
+    }
     counter.textContent = `${currentIndex + 1} / ${total}`;
-    preload(imageUrls[wrapIndex(currentIndex + 1)]);
-    preload(imageUrls[wrapIndex(currentIndex - 1)]);
+    const nextItem = items[wrapIndex(currentIndex + 1)];
+    const prevItem = items[wrapIndex(currentIndex - 1)];
+    if (nextItem && nextItem.type === 'image') {
+      preload(nextItem.src);
+    }
+    if (prevItem && prevItem.type === 'image') {
+      preload(prevItem.src);
+    }
     resetZoom();
   }
 
   function toggleZoom() {
     if (!lightbox.classList.contains('active')) return;
+    if (currentType !== 'image') return;
     isZoomed = !isZoomed;
     lightbox.classList.toggle('is-zoomed', isZoomed);
     if (!isZoomed) {
@@ -798,6 +991,7 @@ endwhile; endif;
   });
 
   img.addEventListener('mousedown', function (e) {
+    if (currentType !== 'image') return;
     if (!isZoomed) return;
     isDragging = true;
     dragStartX = e.clientX - translateX;
@@ -805,6 +999,7 @@ endwhile; endif;
   });
 
   document.addEventListener('mousemove', function (e) {
+    if (currentType !== 'image') return;
     if (!isZoomed || !isDragging) return;
     translateX = e.clientX - dragStartX;
     translateY = e.clientY - dragStartY;
@@ -816,6 +1011,7 @@ endwhile; endif;
   });
 
   img.addEventListener('touchstart', function (e) {
+    if (currentType !== 'image') return;
     if (!isZoomed) return;
     if (e.touches.length !== 1) return;
     isDragging = true;
@@ -824,6 +1020,7 @@ endwhile; endif;
   }, { passive: true });
 
   img.addEventListener('touchmove', function (e) {
+    if (currentType !== 'image') return;
     if (!isZoomed || !isDragging) return;
     if (e.touches.length !== 1) return;
     translateX = e.touches[0].clientX - dragStartX;
