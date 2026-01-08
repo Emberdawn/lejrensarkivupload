@@ -1813,7 +1813,13 @@ JS;
             wp_set_object_terms($post_id, [], $taxonomy, false);
           }
         } else {
-          wp_set_object_terms($post_id, [], $this->get_taxonomy_slug(), false);
+          $default_mappe_id = $this->get_or_create_default_mappe_term_id();
+          if (!empty($default_mappe_id)) {
+            wp_set_object_terms($post_id, [$default_mappe_id], $this->get_taxonomy_slug(), false);
+            $mappe_assigned = true;
+          } else {
+            wp_set_object_terms($post_id, [], $this->get_taxonomy_slug(), false);
+          }
         }
       } else {
         $mappe_id = absint($mappe_input);
@@ -1821,7 +1827,13 @@ JS;
           wp_set_object_terms($post_id, [$mappe_id], $this->get_taxonomy_slug(), false);
           $mappe_assigned = true;
         } else {
-          wp_set_object_terms($post_id, [], $this->get_taxonomy_slug(), false);
+          $default_mappe_id = $this->get_or_create_default_mappe_term_id();
+          if (!empty($default_mappe_id)) {
+            wp_set_object_terms($post_id, [$default_mappe_id], $this->get_taxonomy_slug(), false);
+            $mappe_assigned = true;
+          } else {
+            wp_set_object_terms($post_id, [], $this->get_taxonomy_slug(), false);
+          }
         }
       }
 
