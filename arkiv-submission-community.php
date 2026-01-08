@@ -1742,6 +1742,24 @@ JS;
     return (int) $attachment_id;
   }
 
+  private function get_or_create_default_mappe_term_id() {
+    $taxonomy = $this->get_taxonomy_slug();
+    $term = term_exists('Ukategoriserede', $taxonomy);
+    if (is_array($term)) {
+      return (int) $term['term_id'];
+    }
+    if (is_int($term)) {
+      return $term;
+    }
+
+    $created = wp_insert_term('Ukategoriserede', $taxonomy);
+    if (is_wp_error($created) || !isset($created['term_id'])) {
+      return 0;
+    }
+
+    return (int) $created['term_id'];
+  }
+
   private function update_post_from_request($post_id, array $request, $status = null) {
     $new_title = isset($request['arkiv_edit_title']) ? sanitize_text_field(wp_unslash($request['arkiv_edit_title'])) : '';
     $new_content = isset($request['arkiv_edit_content']) ? wp_kses_post($request['arkiv_edit_content']) : '';
@@ -1759,6 +1777,7 @@ JS;
     wp_update_post($update_data);
 
     if (array_key_exists('arkiv_edit_mappe', $request)) {
+      $mappe_assigned = false;
       $mappe_input = wp_unslash($request['arkiv_edit_mappe']);
       if ($mappe_input === 'suggested') {
         $suggested = get_post_meta($post_id, self::META_SUGGESTED_FOLDER, true);
@@ -1778,6 +1797,7 @@ JS;
           if (!empty($term_id)) {
             wp_set_object_terms($post_id, [$term_id], $taxonomy, false);
             delete_post_meta($post_id, self::META_SUGGESTED_FOLDER);
+            $mappe_assigned = true;
           } else {
             wp_set_object_terms($post_id, [], $taxonomy, false);
           }
@@ -1788,8 +1808,16 @@ JS;
         $mappe_id = absint($mappe_input);
         if ($mappe_id > 0) {
           wp_set_object_terms($post_id, [$mappe_id], $this->get_taxonomy_slug(), false);
+          $mappe_assigned = true;
         } else {
           wp_set_object_terms($post_id, [], $this->get_taxonomy_slug(), false);
+        }
+      }
+
+      if ($status === 'publish' && !$mappe_assigned) {
+        $default_mappe_id = $this->get_or_create_default_mappe_term_id();
+        if (!empty($default_mappe_id)) {
+          wp_set_object_terms($post_id, [$default_mappe_id], $this->get_taxonomy_slug(), false);
         }
       }
     }
