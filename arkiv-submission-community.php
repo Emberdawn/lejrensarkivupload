@@ -49,6 +49,8 @@ class Arkiv_Submission_Plugin {
     add_action('pre_get_posts', [$this, 'restrict_mappe_query_to_arkiv']);
     add_action('pre_comment_on_post', [$this, 'block_anonymous_comments']);
     add_filter('show_admin_bar', [$this, 'maybe_hide_admin_bar']);
+    add_filter('private_title_format', fn() => '%s');
+    add_filter('bbp_get_private_title_format', fn() => '%s');
     add_action('before_delete_post', [$this, 'delete_post_images_on_admin_delete']);
     add_action('wp_trash_post', [$this, 'delete_post_images_on_admin_delete']);
   }
