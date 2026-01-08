@@ -36,6 +36,7 @@ class Arkiv_Submission_Plugin {
     add_action('admin_menu', [$this, 'register_settings_page']);
     add_action('admin_init', [$this, 'register_settings']);
     add_action('admin_init', [$this, 'maybe_handle_mappe_settings_save']);
+    add_action('admin_init', [$this, 'maybe_handle_mappe_manager_actions']);
     add_action('admin_init', [$this, 'maybe_handle_admin_review']);
     add_action('admin_enqueue_scripts', [$this, 'enqueue_mappe_admin_assets']);
     add_action('wp_head', [$this, 'output_mappe_knapper_styles']);
@@ -636,6 +637,15 @@ class Arkiv_Submission_Plugin {
       80
     );
 
+    add_submenu_page(
+      'arkiv-submission-settings',
+      'Mapper',
+      'Mapper',
+      'manage_options',
+      'arkiv-mapper',
+      [$this, 'render_mappe_manager_page']
+    );
+
     $this->mappe_settings_page_hook = add_submenu_page(
       'arkiv-submission-settings',
       'Mappe knapper',
@@ -933,6 +943,171 @@ class Arkiv_Submission_Plugin {
       </form>
     </div>
     <?php
+  }
+
+  public function render_mappe_manager_page() {
+    if (!current_user_can('manage_options')) {
+      return;
+    }
+
+    $taxonomy = $this->get_taxonomy_slug();
+    $terms = get_terms([
+      'taxonomy' => $taxonomy,
+      'hide_empty' => false,
+    ]);
+
+    $status = isset($_GET['arkiv_mappe_status']) ? sanitize_key($_GET['arkiv_mappe_status']) : '';
+    $message = '';
+    $message_class = 'notice-success';
+    if ($status === 'created') {
+      $message = 'Ny mappe er oprettet.';
+    } elseif ($status === 'deleted') {
+      $message = 'Mappen er slettet.';
+    } elseif ($status === 'error') {
+      $message = 'Noget gik galt. Prøv igen.';
+      $message_class = 'notice-error';
+    }
+    ?>
+    <div class="wrap">
+      <h1>Mapper</h1>
+      <p>Opret og slet mapper som bruges til Arkiv-indlæg.</p>
+      <?php if ($message !== '') : ?>
+        <div class="notice <?php echo esc_attr($message_class); ?> is-dismissible">
+          <p><?php echo esc_html($message); ?></p>
+        </div>
+      <?php endif; ?>
+
+      <h2>Opret ny mappe</h2>
+      <form method="post" action="">
+        <?php wp_nonce_field('arkiv_mappe_create', 'arkiv_mappe_create_nonce'); ?>
+        <input type="hidden" name="arkiv_mappe_create_submit" value="1">
+        <table class="form-table" role="presentation">
+          <tr>
+            <th scope="row"><label for="arkivMappeName">Navn</label></th>
+            <td>
+              <input id="arkivMappeName" name="arkiv_mappe_name" type="text" class="regular-text" required>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row"><label for="arkivMappeDescription">Beskrivelse</label></th>
+            <td>
+              <textarea id="arkivMappeDescription" name="arkiv_mappe_description" rows="3" class="large-text"></textarea>
+            </td>
+          </tr>
+        </table>
+        <?php submit_button('Opret mappe'); ?>
+      </form>
+
+      <h2>Eksisterende mapper</h2>
+      <table class="widefat striped">
+        <thead>
+          <tr>
+            <th scope="col">Mappe</th>
+            <th scope="col">Slug</th>
+            <th scope="col">Antal indlæg</th>
+            <th scope="col">Handling</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php if (!is_wp_error($terms) && !empty($terms)) : ?>
+            <?php foreach ($terms as $term) : ?>
+              <tr>
+                <td>
+                  <strong><?php echo esc_html($term->name); ?></strong>
+                </td>
+                <td><?php echo esc_html($term->slug); ?></td>
+                <td><?php echo (int) $term->count; ?></td>
+                <td>
+                  <form method="post" action="" class="arkiv-mappe-delete-form" style="display:inline;">
+                    <?php wp_nonce_field('arkiv_mappe_delete', 'arkiv_mappe_delete_nonce'); ?>
+                    <input type="hidden" name="arkiv_mappe_delete_submit" value="1">
+                    <input type="hidden" name="arkiv_mappe_delete_term" value="<?php echo (int) $term->term_id; ?>">
+                    <button type="submit" class="button button-link-delete arkiv-mappe-delete-button">Slet</button>
+                  </form>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          <?php else : ?>
+            <tr>
+              <td colspan="4">Ingen mapper fundet.</td>
+            </tr>
+          <?php endif; ?>
+        </tbody>
+      </table>
+    </div>
+    <script>
+      (function () {
+        const deleteButtons = document.querySelectorAll('.arkiv-mappe-delete-button');
+        if (!deleteButtons.length) {
+          return;
+        }
+        deleteButtons.forEach(button => {
+          button.addEventListener('click', function (event) {
+            const confirmed = window.confirm('Vil du virkelig slette denne mappe?');
+            if (!confirmed) {
+              event.preventDefault();
+            }
+          });
+        });
+      })();
+    </script>
+    <?php
+  }
+
+  public function maybe_handle_mappe_manager_actions() {
+    if (!current_user_can('manage_options')) {
+      return;
+    }
+
+    $taxonomy = $this->get_taxonomy_slug();
+
+    if (!empty($_POST['arkiv_mappe_create_submit'])) {
+      if (empty($_POST['arkiv_mappe_create_nonce']) || !wp_verify_nonce($_POST['arkiv_mappe_create_nonce'], 'arkiv_mappe_create')) {
+        return;
+      }
+
+      $name = isset($_POST['arkiv_mappe_name']) ? sanitize_text_field(wp_unslash($_POST['arkiv_mappe_name'])) : '';
+      $description = isset($_POST['arkiv_mappe_description']) ? sanitize_textarea_field(wp_unslash($_POST['arkiv_mappe_description'])) : '';
+
+      if ($name === '') {
+        $this->redirect_mappe_manager('error');
+      }
+
+      $result = wp_insert_term($name, $taxonomy, [
+        'description' => $description,
+      ]);
+
+      if (is_wp_error($result)) {
+        $this->redirect_mappe_manager('error');
+      }
+
+      $this->redirect_mappe_manager('created');
+    }
+
+    if (!empty($_POST['arkiv_mappe_delete_submit'])) {
+      if (empty($_POST['arkiv_mappe_delete_nonce']) || !wp_verify_nonce($_POST['arkiv_mappe_delete_nonce'], 'arkiv_mappe_delete')) {
+        return;
+      }
+
+      $term_id = isset($_POST['arkiv_mappe_delete_term']) ? absint($_POST['arkiv_mappe_delete_term']) : 0;
+      if ($term_id > 0) {
+        $result = wp_delete_term($term_id, $taxonomy);
+        if (is_wp_error($result)) {
+          $this->redirect_mappe_manager('error');
+        }
+      }
+
+      $this->redirect_mappe_manager('deleted');
+    }
+  }
+
+  private function redirect_mappe_manager($status) {
+    $url = menu_page_url('arkiv-mapper', false);
+    if (!$url) {
+      return;
+    }
+    wp_safe_redirect(add_query_arg('arkiv_mappe_status', $status, $url));
+    exit;
   }
 
   public function render_admin_bar_settings_page() {
