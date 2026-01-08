@@ -1113,6 +1113,7 @@ class Arkiv_Submission_Plugin {
 
       $term_id = isset($_POST['arkiv_mappe_delete_term']) ? absint($_POST['arkiv_mappe_delete_term']) : 0;
       if ($term_id > 0) {
+        $this->reassign_mappe_content_to_uncategorized($term_id, $taxonomy);
         $result = wp_delete_term($term_id, $taxonomy);
         if (is_wp_error($result)) {
           $this->redirect_mappe_manager('error');
@@ -1130,6 +1131,38 @@ class Arkiv_Submission_Plugin {
     }
     wp_safe_redirect(add_query_arg('arkiv_mappe_status', $status, $url));
     exit;
+  }
+
+  private function reassign_mappe_content_to_uncategorized($term_id, $taxonomy) {
+    $uncategorized_term = $this->get_or_create_uncategorized_term($taxonomy);
+    if (!$uncategorized_term || is_wp_error($uncategorized_term)) {
+      return;
+    }
+
+    if ((int) $uncategorized_term->term_id === (int) $term_id) {
+      return;
+    }
+
+    $object_ids = get_objects_in_term($term_id, $taxonomy);
+    if (is_wp_error($object_ids) || empty($object_ids)) {
+      return;
+    }
+
+    wp_set_object_terms($object_ids, [(int) $uncategorized_term->term_id], $taxonomy, false);
+  }
+
+  private function get_or_create_uncategorized_term($taxonomy) {
+    $uncategorized = get_term_by('name', 'Ukategoriserede', $taxonomy);
+    if ($uncategorized && !is_wp_error($uncategorized)) {
+      return $uncategorized;
+    }
+
+    $result = wp_insert_term('Ukategoriserede', $taxonomy);
+    if (is_wp_error($result)) {
+      return $result;
+    }
+
+    return get_term((int) $result['term_id'], $taxonomy);
   }
 
   public function render_admin_bar_settings_page() {
