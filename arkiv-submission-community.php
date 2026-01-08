@@ -36,6 +36,7 @@ class Arkiv_Submission_Plugin {
     add_action('admin_menu', [$this, 'register_settings_page']);
     add_action('admin_init', [$this, 'register_settings']);
     add_action('admin_init', [$this, 'maybe_handle_mappe_settings_save']);
+    add_action('admin_init', [$this, 'maybe_handle_admin_review']);
     add_action('admin_enqueue_scripts', [$this, 'enqueue_mappe_admin_assets']);
     add_action('wp_head', [$this, 'output_mappe_knapper_styles']);
     add_action('wp_ajax_arkiv_submit', [$this, 'handle_ajax_submit']);
@@ -651,6 +652,15 @@ class Arkiv_Submission_Plugin {
       'manage_options',
       'arkiv-admin-bar-settings',
       [$this, 'render_admin_bar_settings_page']
+    );
+
+    add_submenu_page(
+      'arkiv-submission-settings',
+      'Afventer godkendelse',
+      'Afventer godkendelse',
+      'edit_others_posts',
+      'arkiv-pending-posts',
+      [$this, 'render_pending_posts_page']
     );
   }
 
@@ -1312,6 +1322,469 @@ JS;
     return (int) $attachment_id;
   }
 
+  private function update_post_from_request($post_id, array $request, $status = null) {
+    $new_title = isset($request['arkiv_edit_title']) ? sanitize_text_field(wp_unslash($request['arkiv_edit_title'])) : '';
+    $new_content = isset($request['arkiv_edit_content']) ? wp_kses_post($request['arkiv_edit_content']) : '';
+
+    $update_data = [
+      'ID' => $post_id,
+      'post_title' => $new_title,
+      'post_content' => $new_content,
+    ];
+
+    if ($status !== null) {
+      $update_data['post_status'] = $status;
+    }
+
+    wp_update_post($update_data);
+
+    if (array_key_exists('arkiv_edit_mappe', $request)) {
+      $mappe_input = absint(wp_unslash($request['arkiv_edit_mappe']));
+      if ($mappe_input > 0) {
+        wp_set_object_terms($post_id, [$mappe_input], $this->get_taxonomy_slug(), false);
+      } else {
+        wp_set_object_terms($post_id, [], $this->get_taxonomy_slug(), false);
+      }
+    }
+
+    $delete_ids = [];
+    if (!empty($request['arkiv_delete_images'])) {
+      $delete_ids = array_filter(array_map('absint', explode(',', wp_unslash($request['arkiv_delete_images']))));
+    }
+
+    $gallery_ids = get_post_meta($post_id, '_arkiv_gallery_ids', true);
+    if (!is_array($gallery_ids)) {
+      $gallery_ids = [];
+    }
+
+    if (!empty($delete_ids)) {
+      $remaining = [];
+      foreach ($gallery_ids as $att_id) {
+        if (in_array((int) $att_id, $delete_ids, true)) {
+          wp_delete_attachment((int) $att_id, true);
+          continue;
+        }
+        $remaining[] = (int) $att_id;
+      }
+      $gallery_ids = $remaining;
+    }
+
+    $new_uploads = $this->handle_images_upload($post_id);
+    if (!empty($new_uploads)) {
+      $gallery_ids = array_values(array_merge($gallery_ids, $new_uploads));
+    }
+
+    if (!empty($gallery_ids)) {
+      update_post_meta($post_id, '_arkiv_gallery_ids', $gallery_ids);
+    } else {
+      delete_post_meta($post_id, '_arkiv_gallery_ids');
+    }
+
+    if (array_key_exists('arkiv_featured_image', $request)) {
+      $featured_input = sanitize_text_field(wp_unslash($request['arkiv_featured_image']));
+      if ($featured_input === '0') {
+        delete_post_thumbnail($post_id);
+      } elseif ($featured_input === 'auto' || $featured_input === '') {
+        if (!empty($gallery_ids)) {
+          set_post_thumbnail($post_id, $gallery_ids[0]);
+        } else {
+          delete_post_thumbnail($post_id);
+        }
+      } else {
+        $featured_id = absint($featured_input);
+        if ($featured_id && in_array((int) $featured_id, $gallery_ids, true)) {
+          set_post_thumbnail($post_id, $featured_id);
+        } elseif (!empty($gallery_ids)) {
+          set_post_thumbnail($post_id, $gallery_ids[0]);
+        } else {
+          delete_post_thumbnail($post_id);
+        }
+      }
+    } else {
+      $thumbnail_id = get_post_thumbnail_id($post_id);
+      if ($thumbnail_id && !in_array((int) $thumbnail_id, $gallery_ids, true)) {
+        if (!empty($gallery_ids)) {
+          set_post_thumbnail($post_id, $gallery_ids[0]);
+        } else {
+          delete_post_thumbnail($post_id);
+        }
+      } elseif (!$thumbnail_id && !empty($gallery_ids)) {
+        set_post_thumbnail($post_id, $gallery_ids[0]);
+      }
+    }
+  }
+
+  public function maybe_handle_admin_review() {
+    $is_approve = !empty($_POST['arkiv_approve_btn']);
+    $is_delete = !empty($_POST['arkiv_admin_delete_btn']);
+
+    if (!$is_approve && !$is_delete) {
+      return;
+    }
+
+    if (!current_user_can('edit_others_posts')) {
+      return;
+    }
+
+    if (!isset($_POST['arkiv_admin_review_nonce']) || !wp_verify_nonce($_POST['arkiv_admin_review_nonce'], 'arkiv_admin_review_action')) {
+      return;
+    }
+
+    $post_id = isset($_POST['arkiv_edit_post_id']) ? (int) $_POST['arkiv_edit_post_id'] : 0;
+    if (!$post_id) {
+      return;
+    }
+
+    $post = get_post($post_id);
+    if (!$post || $post->post_type !== $this->get_post_type_slug()) {
+      return;
+    }
+
+    if (!current_user_can('edit_post', $post_id)) {
+      return;
+    }
+
+    $redirect_url = admin_url('admin.php?page=arkiv-pending-posts');
+
+    if ($is_delete) {
+      if (!current_user_can('delete_post', $post_id)) {
+        return;
+      }
+      $this->delete_post_with_images($post_id);
+      wp_safe_redirect(add_query_arg('arkiv_review', 'deleted', $redirect_url));
+      exit;
+    }
+
+    if (!current_user_can('publish_post', $post_id) && !current_user_can('publish_posts')) {
+      return;
+    }
+
+    $this->update_post_from_request($post_id, $_POST, 'publish');
+    wp_safe_redirect(add_query_arg('arkiv_review', 'approved', $redirect_url));
+    exit;
+  }
+
+  public function render_pending_posts_page() {
+    if (!current_user_can('edit_others_posts')) {
+      wp_die('Du har ikke adgang til denne side.');
+    }
+
+    $post_id = isset($_GET['post_id']) ? absint($_GET['post_id']) : 0;
+    $notice = isset($_GET['arkiv_review']) ? sanitize_text_field(wp_unslash($_GET['arkiv_review'])) : '';
+
+    echo '<div class="wrap">';
+    echo '<h1>Afventer godkendelse</h1>';
+
+    if ($notice === 'approved') {
+      echo '<div class="notice notice-success is-dismissible"><p>Indlægget er godkendt og udgivet.</p></div>';
+    } elseif ($notice === 'deleted') {
+      echo '<div class="notice notice-success is-dismissible"><p>Indlægget er slettet.</p></div>';
+    }
+
+    if ($post_id) {
+      $this->render_pending_post_detail($post_id);
+      echo '</div>';
+      return;
+    }
+
+    $pending_posts = get_posts([
+      'post_type' => $this->get_post_type_slug(),
+      'post_status' => 'pending',
+      'posts_per_page' => 50,
+      'orderby' => 'date',
+      'order' => 'DESC',
+    ]);
+
+    if (empty($pending_posts)) {
+      echo '<p>Ingen indlæg afventer godkendelse.</p>';
+      echo '</div>';
+      return;
+    }
+
+    echo '<table class="widefat fixed striped">';
+    echo '<thead><tr><th>Titel</th><th>Forfatter</th><th>Dato</th></tr></thead>';
+    echo '<tbody>';
+
+    foreach ($pending_posts as $post) {
+      $edit_link = add_query_arg(
+        ['page' => 'arkiv-pending-posts', 'post_id' => (int) $post->ID],
+        admin_url('admin.php')
+      );
+      $author = get_userdata((int) $post->post_author);
+      $author_name = $author ? $author->display_name : '—';
+      echo '<tr>';
+      echo '<td><a href="' . esc_url($edit_link) . '">' . esc_html(get_the_title($post)) . '</a></td>';
+      echo '<td>' . esc_html($author_name) . '</td>';
+      echo '<td>' . esc_html(get_the_date('', $post)) . '</td>';
+      echo '</tr>';
+    }
+
+    echo '</tbody></table>';
+    echo '</div>';
+  }
+
+  private function render_pending_post_detail($post_id) {
+    $post = get_post($post_id);
+    if (!$post || $post->post_type !== $this->get_post_type_slug()) {
+      echo '<p>Indlægget blev ikke fundet.</p>';
+      return;
+    }
+
+    if (!current_user_can('edit_post', $post_id)) {
+      echo '<p>Du har ikke adgang til dette indlæg.</p>';
+      return;
+    }
+
+    $terms = get_the_terms($post_id, $this->get_taxonomy_slug());
+    $mappe_terms = get_terms([
+      'taxonomy' => $this->get_taxonomy_slug(),
+      'hide_empty' => false,
+    ]);
+    $current_mappe_id = (!empty($terms) && !is_wp_error($terms)) ? (int) $terms[0]->term_id : 0;
+
+    $gallery_ids = get_post_meta($post_id, '_arkiv_gallery_ids', true);
+    if (!is_array($gallery_ids)) {
+      $gallery_ids = [];
+    }
+    $thumbnail_id = get_post_thumbnail_id($post_id);
+    $featured_selected = ($thumbnail_id && in_array((int) $thumbnail_id, $gallery_ids, true)) ? (int) $thumbnail_id : 'auto';
+
+    if ($post->post_status !== 'pending') {
+      echo '<div class="notice notice-warning"><p>Dette indlæg er ikke længere markeret som afventende.</p></div>';
+    }
+
+    $back_link = admin_url('admin.php?page=arkiv-pending-posts');
+    ?>
+    <a class="button" href="<?php echo esc_url($back_link); ?>">← Tilbage til listen</a>
+
+    <form class="arkiv-edit-form" method="post" enctype="multipart/form-data" style="margin-top:16px;">
+      <?php wp_nonce_field('arkiv_admin_review_action', 'arkiv_admin_review_nonce'); ?>
+      <input type="hidden" name="arkiv_edit_post_id" value="<?php echo (int) $post_id; ?>">
+      <input type="hidden" name="arkiv_delete_images" id="arkivDeleteImages" value="">
+
+      <label class="arkiv-edit-label" for="arkivEditTitle">Titel</label>
+      <input
+        id="arkivEditTitle"
+        class="arkiv-edit-title"
+        type="text"
+        name="arkiv_edit_title"
+        value="<?php echo esc_attr(get_the_title($post_id)); ?>"
+        required
+      >
+
+      <label class="arkiv-edit-label" for="arkivEditContent">Historie</label>
+      <?php
+      wp_editor(
+        get_post_field('post_content', $post_id),
+        'arkivEditContent',
+        [
+          'textarea_name' => 'arkiv_edit_content',
+          'textarea_rows' => 10,
+          'media_buttons' => false,
+          'teeny' => true,
+        ]
+      );
+      ?>
+
+      <div class="arkiv-edit-mappe" style="margin-top:16px;">
+        <label class="arkiv-edit-label" for="arkivEditMappe">Mappe</label>
+        <select id="arkivEditMappe" name="arkiv_edit_mappe" class="arkiv-edit-select">
+          <option value="0">Ingen mappe</option>
+          <?php if (!is_wp_error($mappe_terms)) : ?>
+            <?php foreach ($mappe_terms as $term) : ?>
+              <option value="<?php echo (int) $term->term_id; ?>" <?php selected($current_mappe_id, (int) $term->term_id); ?>>
+                <?php echo esc_html($term->name); ?>
+              </option>
+            <?php endforeach; ?>
+          <?php endif; ?>
+        </select>
+      </div>
+
+      <div class="arkiv-edit-images" style="margin-top:18px;">
+        <h2>Billeder</h2>
+        <?php if (!empty($gallery_ids)) : ?>
+          <div class="arkiv-edit-grid">
+            <?php foreach ($gallery_ids as $att_id) :
+              $thumb = wp_get_attachment_image($att_id, 'medium', false, ['class' => 'arkiv-img']);
+              if (!$thumb) {
+                continue;
+              }
+              ?>
+              <div class="arkiv-edit-tile" data-att-id="<?php echo (int) $att_id; ?>">
+                <?php echo $thumb; ?>
+                <button class="arkiv-delete-image" type="button">Slet</button>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php else : ?>
+          <p class="arkiv-edit-empty">Ingen billeder endnu.</p>
+        <?php endif; ?>
+      </div>
+
+      <div class="arkiv-edit-upload" style="margin-top:18px;">
+        <label class="arkiv-edit-label" for="arkivEditImages">Upload flere billeder</label>
+        <input id="arkivEditImages" type="file" name="arkiv_images[]" accept="image/*" multiple>
+        <div class="arkiv-edit-preview" id="arkivEditPreview"></div>
+      </div>
+
+      <div class="arkiv-edit-featured" style="margin-top:18px;">
+        <label class="arkiv-edit-label" for="arkivFeaturedImage">Forsidebillede</label>
+        <?php if (!empty($gallery_ids)) : ?>
+          <select id="arkivFeaturedImage" name="arkiv_featured_image">
+            <option value="auto" <?php selected($featured_selected, 'auto'); ?>>Automatisk (første billede)</option>
+            <option value="0">Ingen forsidebillede</option>
+            <?php foreach ($gallery_ids as $att_id) :
+              $label = get_the_title($att_id);
+              if ($label === '') {
+                $label = 'Billede #' . (int) $att_id;
+              }
+              ?>
+              <option value="<?php echo (int) $att_id; ?>" <?php selected($featured_selected, (int) $att_id); ?>>
+                <?php echo esc_html($label); ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        <?php else : ?>
+          <p class="arkiv-edit-empty">Tilføj billeder for at vælge forsidebillede.</p>
+        <?php endif; ?>
+      </div>
+
+      <div class="arkiv-edit-actions" style="margin-top:22px; display:flex; gap:12px; align-items:center;">
+        <button type="submit" name="arkiv_approve_btn" value="1" class="button button-primary">Godkend</button>
+        <a class="button" href="<?php echo esc_url($back_link); ?>">Annuler</a>
+        <button type="submit" name="arkiv_admin_delete_btn" value="1" class="button button-secondary" style="margin-left:auto; background:#d63638; color:#fff; border-color:#b32d2e;">Slet indlæg</button>
+      </div>
+    </form>
+
+    <style>
+      .arkiv-edit-form textarea {
+        width: 100%;
+        max-width: 100%;
+        border-radius: 8px;
+        border: 1px solid #c3c4c7;
+        padding: 10px 12px;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .arkiv-edit-title {
+        width: 100%;
+        max-width: 100%;
+        border-radius: 8px;
+        border: 1px solid #c3c4c7;
+        padding: 8px 10px;
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+
+      .arkiv-edit-label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+
+      .arkiv-edit-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 12px;
+      }
+
+      .arkiv-edit-tile {
+        position: relative;
+        background: #fff;
+        padding: 8px;
+        border-radius: 8px;
+        border: 1px solid #e5e5e5;
+      }
+
+      .arkiv-delete-image {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        background: rgba(17,17,17,.9);
+        color: #fff;
+        border: none;
+        border-radius: 999px;
+        padding: 4px 8px;
+        font-size: 11px;
+        cursor: pointer;
+      }
+
+      .arkiv-edit-preview {
+        margin-top: 12px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 12px;
+      }
+
+      .arkiv-edit-preview img {
+        width: 100%;
+        height: auto;
+        border-radius: 8px;
+      }
+    </style>
+
+    <script>
+      (function () {
+        const deleteButtons = document.querySelectorAll('.arkiv-delete-image');
+        const deleteInput = document.getElementById('arkivDeleteImages');
+        const uploadInput = document.getElementById('arkivEditImages');
+        const previewWrap = document.getElementById('arkivEditPreview');
+        const deletePostButton = document.querySelector('button[name="arkiv_admin_delete_btn"]');
+
+        if (deleteButtons.length && deleteInput) {
+          deleteButtons.forEach(button => {
+            button.addEventListener('click', function () {
+              const tile = this.closest('.arkiv-edit-tile');
+              if (!tile) return;
+              const attId = tile.dataset.attId;
+              if (!attId) return;
+              const confirmDelete = window.confirm('Vil du virkelig slette billedet?');
+              if (!confirmDelete) return;
+              tile.style.opacity = '0.4';
+              const current = deleteInput.value ? deleteInput.value.split(',') : [];
+              if (!current.includes(attId)) {
+                current.push(attId);
+                deleteInput.value = current.join(',');
+              }
+              tile.remove();
+            });
+          });
+        }
+
+        if (uploadInput && previewWrap) {
+          uploadInput.addEventListener('change', function () {
+            previewWrap.innerHTML = '';
+            const files = Array.from(uploadInput.files || []);
+            files.forEach(file => {
+              if (!file.type.startsWith('image/')) {
+                return;
+              }
+              const img = document.createElement('img');
+              img.alt = file.name;
+              previewWrap.appendChild(img);
+              const reader = new FileReader();
+              reader.onload = function (event) {
+                img.src = event.target.result;
+              };
+              reader.readAsDataURL(file);
+            });
+          });
+        }
+
+        if (deletePostButton) {
+          deletePostButton.addEventListener('click', function (event) {
+            const confirmed = window.confirm('Vil du virkelig slette indlægget?');
+            if (!confirmed) {
+              event.preventDefault();
+            }
+          });
+        }
+      })();
+    </script>
+    <?php
+  }
+
   public function maybe_handle_edit() {
     $is_edit = !empty($_POST['arkiv_edit_btn']);
     $is_delete = !empty($_POST['arkiv_delete_btn']);
@@ -1350,89 +1823,7 @@ JS;
       exit;
     }
 
-    $new_title = isset($_POST['arkiv_edit_title']) ? sanitize_text_field(wp_unslash($_POST['arkiv_edit_title'])) : '';
-    $new_content = isset($_POST['arkiv_edit_content']) ? wp_kses_post($_POST['arkiv_edit_content']) : '';
-
-    wp_update_post([
-      'ID' => $post_id,
-      'post_title' => $new_title,
-      'post_content' => $new_content,
-    ]);
-
-    if (array_key_exists('arkiv_edit_mappe', $_POST)) {
-      $mappe_input = absint(wp_unslash($_POST['arkiv_edit_mappe']));
-      if ($mappe_input > 0) {
-        wp_set_object_terms($post_id, [$mappe_input], $this->get_taxonomy_slug(), false);
-      } else {
-        wp_set_object_terms($post_id, [], $this->get_taxonomy_slug(), false);
-      }
-    }
-
-    $delete_ids = [];
-    if (!empty($_POST['arkiv_delete_images'])) {
-      $delete_ids = array_filter(array_map('absint', explode(',', wp_unslash($_POST['arkiv_delete_images']))));
-    }
-
-    $gallery_ids = get_post_meta($post_id, '_arkiv_gallery_ids', true);
-    if (!is_array($gallery_ids)) {
-      $gallery_ids = [];
-    }
-
-    if (!empty($delete_ids)) {
-      $remaining = [];
-      foreach ($gallery_ids as $att_id) {
-        if (in_array((int) $att_id, $delete_ids, true)) {
-          wp_delete_attachment((int) $att_id, true);
-          continue;
-        }
-        $remaining[] = (int) $att_id;
-      }
-      $gallery_ids = $remaining;
-    }
-
-    $new_uploads = $this->handle_images_upload($post_id);
-    if (!empty($new_uploads)) {
-      $gallery_ids = array_values(array_merge($gallery_ids, $new_uploads));
-    }
-
-    if (!empty($gallery_ids)) {
-      update_post_meta($post_id, '_arkiv_gallery_ids', $gallery_ids);
-    } else {
-      delete_post_meta($post_id, '_arkiv_gallery_ids');
-    }
-
-    if (array_key_exists('arkiv_featured_image', $_POST)) {
-      $featured_input = sanitize_text_field(wp_unslash($_POST['arkiv_featured_image']));
-      if ($featured_input === '0') {
-        delete_post_thumbnail($post_id);
-      } elseif ($featured_input === 'auto' || $featured_input === '') {
-        if (!empty($gallery_ids)) {
-          set_post_thumbnail($post_id, $gallery_ids[0]);
-        } else {
-          delete_post_thumbnail($post_id);
-        }
-      } else {
-        $featured_id = absint($featured_input);
-        if ($featured_id && in_array((int) $featured_id, $gallery_ids, true)) {
-          set_post_thumbnail($post_id, $featured_id);
-        } elseif (!empty($gallery_ids)) {
-          set_post_thumbnail($post_id, $gallery_ids[0]);
-        } else {
-          delete_post_thumbnail($post_id);
-        }
-      }
-    } else {
-      $thumbnail_id = get_post_thumbnail_id($post_id);
-      if ($thumbnail_id && !in_array((int) $thumbnail_id, $gallery_ids, true)) {
-        if (!empty($gallery_ids)) {
-          set_post_thumbnail($post_id, $gallery_ids[0]);
-        } else {
-          delete_post_thumbnail($post_id);
-        }
-      } elseif (!$thumbnail_id && !empty($gallery_ids)) {
-        set_post_thumbnail($post_id, $gallery_ids[0]);
-      }
-    }
+    $this->update_post_from_request($post_id, $_POST);
 
     wp_safe_redirect(get_permalink($post_id));
     exit;
