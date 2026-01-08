@@ -36,6 +36,7 @@ class Arkiv_Submission_Plugin {
     add_action('add_meta_boxes', [$this, 'add_suggested_folder_metabox']);
     add_action('admin_menu', [$this, 'register_settings_page']);
     add_action('admin_init', [$this, 'register_settings']);
+    add_action('admin_init', [$this, 'seed_admin_capabilities']);
     add_action('admin_init', [$this, 'maybe_handle_mappe_settings_save']);
     add_action('admin_init', [$this, 'maybe_handle_mappe_manager_actions']);
     add_action('admin_init', [$this, 'maybe_handle_admin_review']);
@@ -57,8 +58,16 @@ class Arkiv_Submission_Plugin {
       update_option(self::OPTION_ADMIN_BAR_ROLES, ['administrator']);
     }
 
+    self::seed_admin_capabilities_for_administrators();
+  }
+
+  public function seed_admin_capabilities() {
+    self::seed_admin_capabilities_for_administrators();
+  }
+
+  private static function seed_admin_capabilities_for_administrators() {
     $role = get_role('administrator');
-    if ($role) {
+    if ($role && !$role->has_cap(self::CAP_ADMIN_MENU)) {
       $role->add_cap(self::CAP_ADMIN_MENU);
     }
   }
