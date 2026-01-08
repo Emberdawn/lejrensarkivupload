@@ -23,6 +23,7 @@ class Arkiv_Submission_Plugin {
   const OPTION_UPLOAD_REDIRECT_PAGE_ID = 'arkiv_upload_redirect_page_id';
   const OPTION_ADMIN_BAR_ROLES = 'arkiv_admin_bar_roles';
   const OPTION_LOGOUT_REDIRECT_SLUG = 'arkiv_logout_redirect_slug';
+  const OPTION_BBPRESS_NO_BREADCRUMB = 'arkiv_bbpress_no_breadcrumb';
   const CAP_ADMIN_MENU = 'arkiv_admin_menu_access';
 
   private $mappe_settings_page_hook = '';
@@ -51,6 +52,7 @@ class Arkiv_Submission_Plugin {
     add_filter('show_admin_bar', [$this, 'maybe_hide_admin_bar']);
     add_action('before_delete_post', [$this, 'delete_post_images_on_admin_delete']);
     add_action('wp_trash_post', [$this, 'delete_post_images_on_admin_delete']);
+    add_filter('bbp_no_breadcrumb', [$this, 'maybe_disable_bbpress_breadcrumbs']);
   }
 
   public static function activate() {
@@ -751,6 +753,16 @@ class Arkiv_Submission_Plugin {
     );
 
     register_setting(
+      'arkiv_submission_settings',
+      self::OPTION_BBPRESS_NO_BREADCRUMB,
+      [
+        'type' => 'boolean',
+        'sanitize_callback' => [$this, 'sanitize_checkbox'],
+        'default' => 1,
+      ]
+    );
+
+    register_setting(
       'arkiv_submission_admin_bar_settings',
       self::OPTION_ADMIN_BAR_ROLES,
       [
@@ -832,6 +844,7 @@ class Arkiv_Submission_Plugin {
     $back_page_id = (int) get_option(self::OPTION_BACK_PAGE_ID, 0);
     $upload_redirect_page_id = (int) get_option(self::OPTION_UPLOAD_REDIRECT_PAGE_ID, 0);
     $logout_redirect_slug = $this->get_logout_redirect_slug();
+    $bbpress_no_breadcrumb = (int) get_option(self::OPTION_BBPRESS_NO_BREADCRUMB, 1);
     ?>
     <div class="wrap">
       <h1>Arkiv Submission</h1>
@@ -892,6 +905,15 @@ class Arkiv_Submission_Plugin {
             <td>
               <input type="text" name="<?php echo esc_attr(self::OPTION_LOGOUT_REDIRECT_SLUG); ?>" value="<?php echo esc_attr($logout_redirect_slug); ?>" class="regular-text">
               <p class="description">Sluggen for siden brugeren sendes til efter logout (fx "login").</p>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">bbPress breadcrumbs</th>
+            <td>
+              <label>
+                <input type="checkbox" name="<?php echo esc_attr(self::OPTION_BBPRESS_NO_BREADCRUMB); ?>" value="1" <?php checked(1, $bbpress_no_breadcrumb); ?>>
+                Slå breadcrumbs fra
+              </label>
             </td>
           </tr>
         </table>
@@ -1302,6 +1324,15 @@ JS;
     }
 
     return $saved_roles;
+  }
+
+  public function maybe_disable_bbpress_breadcrumbs($no_breadcrumb) {
+    $disabled = (int) get_option(self::OPTION_BBPRESS_NO_BREADCRUMB, 1);
+    if ($disabled === 1) {
+      return true;
+    }
+
+    return (bool) $no_breadcrumb;
   }
 
   public function maybe_handle_submit() {
