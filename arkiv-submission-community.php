@@ -1339,11 +1339,38 @@ JS;
     wp_update_post($update_data);
 
     if (array_key_exists('arkiv_edit_mappe', $request)) {
-      $mappe_input = absint(wp_unslash($request['arkiv_edit_mappe']));
-      if ($mappe_input > 0) {
-        wp_set_object_terms($post_id, [$mappe_input], $this->get_taxonomy_slug(), false);
+      $mappe_input = wp_unslash($request['arkiv_edit_mappe']);
+      if ($mappe_input === 'suggested') {
+        $suggested = get_post_meta($post_id, self::META_SUGGESTED_FOLDER, true);
+        $suggested = trim((string) $suggested);
+        if ($suggested !== '') {
+          $taxonomy = $this->get_taxonomy_slug();
+          $term = term_exists($suggested, $taxonomy);
+          if (is_array($term)) {
+            $term_id = (int) $term['term_id'];
+          } elseif (is_int($term)) {
+            $term_id = $term;
+          } else {
+            $created = wp_insert_term($suggested, $taxonomy);
+            $term_id = (!is_wp_error($created) && isset($created['term_id'])) ? (int) $created['term_id'] : 0;
+          }
+
+          if (!empty($term_id)) {
+            wp_set_object_terms($post_id, [$term_id], $taxonomy, false);
+            delete_post_meta($post_id, self::META_SUGGESTED_FOLDER);
+          } else {
+            wp_set_object_terms($post_id, [], $taxonomy, false);
+          }
+        } else {
+          wp_set_object_terms($post_id, [], $this->get_taxonomy_slug(), false);
+        }
       } else {
-        wp_set_object_terms($post_id, [], $this->get_taxonomy_slug(), false);
+        $mappe_id = absint($mappe_input);
+        if ($mappe_id > 0) {
+          wp_set_object_terms($post_id, [$mappe_id], $this->get_taxonomy_slug(), false);
+        } else {
+          wp_set_object_terms($post_id, [], $this->get_taxonomy_slug(), false);
+        }
       }
     }
 
@@ -1541,6 +1568,13 @@ JS;
       'hide_empty' => false,
     ]);
     $current_mappe_id = (!empty($terms) && !is_wp_error($terms)) ? (int) $terms[0]->term_id : 0;
+    $suggested = get_post_meta($post_id, self::META_SUGGESTED_FOLDER, true);
+    $suggested = trim((string) $suggested);
+    $mappe_selected = $current_mappe_id;
+    $use_suggested = ($suggested !== '');
+    if ($use_suggested) {
+      $mappe_selected = 0;
+    }
 
     $gallery_ids = get_post_meta($post_id, '_arkiv_gallery_ids', true);
     if (!is_array($gallery_ids)) {
@@ -1590,9 +1624,14 @@ JS;
         <label class="arkiv-edit-label" for="arkivEditMappe">Mappe</label>
         <select id="arkivEditMappe" name="arkiv_edit_mappe" class="arkiv-edit-select">
           <option value="0">Ingen mappe</option>
+          <?php if ($use_suggested) : ?>
+            <option value="suggested" <?php selected(true, $use_suggested); ?>>
+              <?php echo esc_html('Foreslået: ' . $suggested); ?>
+            </option>
+          <?php endif; ?>
           <?php if (!is_wp_error($mappe_terms)) : ?>
             <?php foreach ($mappe_terms as $term) : ?>
-              <option value="<?php echo (int) $term->term_id; ?>" <?php selected($current_mappe_id, (int) $term->term_id); ?>>
+              <option value="<?php echo (int) $term->term_id; ?>" <?php selected($mappe_selected, (int) $term->term_id); ?>>
                 <?php echo esc_html($term->name); ?>
               </option>
             <?php endforeach; ?>
