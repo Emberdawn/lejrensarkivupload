@@ -23,6 +23,7 @@ class Arkiv_Submission_Plugin {
   const OPTION_UPLOAD_REDIRECT_PAGE_ID = 'arkiv_upload_redirect_page_id';
   const OPTION_ADMIN_BAR_ROLES = 'arkiv_admin_bar_roles';
   const OPTION_LOGOUT_REDIRECT_SLUG = 'arkiv_logout_redirect_slug';
+  const CAP_ADMIN_MENU = 'arkiv_admin_menu_access';
 
   private $mappe_settings_page_hook = '';
 
@@ -54,6 +55,11 @@ class Arkiv_Submission_Plugin {
   public static function activate() {
     if (get_option(self::OPTION_ADMIN_BAR_ROLES, null) === null) {
       update_option(self::OPTION_ADMIN_BAR_ROLES, ['administrator']);
+    }
+
+    $role = get_role('administrator');
+    if ($role) {
+      $role->add_cap(self::CAP_ADMIN_MENU);
     }
   }
 
@@ -630,7 +636,7 @@ class Arkiv_Submission_Plugin {
     add_menu_page(
       'Arkiv Submission',
       'Arkiv Submission',
-      'manage_options',
+      self::CAP_ADMIN_MENU,
       'arkiv-submission-settings',
       [$this, 'render_settings_page'],
       'dashicons-archive',
@@ -641,7 +647,7 @@ class Arkiv_Submission_Plugin {
       'arkiv-submission-settings',
       'Mapper',
       'Mapper',
-      'manage_options',
+      self::CAP_ADMIN_MENU,
       'arkiv-mapper',
       [$this, 'render_mappe_manager_page']
     );
@@ -650,7 +656,7 @@ class Arkiv_Submission_Plugin {
       'arkiv-submission-settings',
       'Mappe knapper',
       'Mappe knapper',
-      'manage_options',
+      self::CAP_ADMIN_MENU,
       'arkiv-mappe-settings',
       [$this, 'render_mappe_settings_page']
     );
@@ -668,7 +674,7 @@ class Arkiv_Submission_Plugin {
       'arkiv-submission-settings',
       'Afventer godkendelse',
       'Afventer godkendelse',
-      'edit_others_posts',
+      self::CAP_ADMIN_MENU,
       'arkiv-pending-posts',
       [$this, 'render_pending_posts_page']
     );
@@ -801,6 +807,13 @@ class Arkiv_Submission_Plugin {
 
   public function render_settings_page() {
     if (!current_user_can('manage_options')) {
+      if (current_user_can(self::CAP_ADMIN_MENU)) {
+        $url = menu_page_url('arkiv-mapper', false);
+        if ($url) {
+          wp_safe_redirect($url);
+          exit;
+        }
+      }
       return;
     }
 
@@ -880,7 +893,7 @@ class Arkiv_Submission_Plugin {
   }
 
   public function render_mappe_settings_page() {
-    if (!current_user_can('manage_options')) {
+    if (!current_user_can(self::CAP_ADMIN_MENU)) {
       return;
     }
 
@@ -946,7 +959,7 @@ class Arkiv_Submission_Plugin {
   }
 
   public function render_mappe_manager_page() {
-    if (!current_user_can('manage_options')) {
+    if (!current_user_can(self::CAP_ADMIN_MENU)) {
       return;
     }
 
@@ -1055,7 +1068,7 @@ class Arkiv_Submission_Plugin {
   }
 
   public function maybe_handle_mappe_manager_actions() {
-    if (!current_user_can('manage_options')) {
+    if (!current_user_can(self::CAP_ADMIN_MENU)) {
       return;
     }
 
@@ -1154,7 +1167,7 @@ class Arkiv_Submission_Plugin {
       return;
     }
 
-    if (!current_user_can('manage_options')) {
+    if (!current_user_can(self::CAP_ADMIN_MENU)) {
       return;
     }
 
@@ -1624,7 +1637,7 @@ JS;
       return;
     }
 
-    if (!current_user_can('edit_others_posts')) {
+    if (!current_user_can(self::CAP_ADMIN_MENU) || !current_user_can('edit_others_posts')) {
       return;
     }
 
@@ -1667,7 +1680,7 @@ JS;
   }
 
   public function render_pending_posts_page() {
-    if (!current_user_can('edit_others_posts')) {
+    if (!current_user_can(self::CAP_ADMIN_MENU)) {
       wp_die('Du har ikke adgang til denne side.');
     }
 
