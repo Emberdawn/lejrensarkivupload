@@ -1148,7 +1148,9 @@ class Arkiv_Submission_Plugin {
       return;
     }
 
-    wp_set_object_terms($object_ids, [(int) $uncategorized_term->term_id], $taxonomy, false);
+    foreach ($object_ids as $object_id) {
+      wp_set_object_terms((int) $object_id, [(int) $uncategorized_term->term_id], $taxonomy, false);
+    }
   }
 
   private function get_or_create_uncategorized_term($taxonomy) {
