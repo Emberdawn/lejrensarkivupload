@@ -30,7 +30,8 @@ if (have_posts()) : while (have_posts()) : the_post();
     $pdf_ids = [];
   }
   $thumbnail_id = get_post_thumbnail_id($post_id);
-  $featured_selected = ($thumbnail_id && in_array((int) $thumbnail_id, $gallery_ids, true)) ? (int) $thumbnail_id : 'auto';
+  $thumbnail_candidates = array_merge($gallery_ids, $pdf_ids);
+  $featured_selected = ($thumbnail_id && in_array((int) $thumbnail_id, $thumbnail_candidates, true)) ? (int) $thumbnail_id : 'auto';
   ?>
 
   <main class="arkiv-single">
@@ -171,9 +172,9 @@ if (have_posts()) : while (have_posts()) : the_post();
 
             <div class="arkiv-edit-featured">
               <label class="arkiv-edit-label" for="arkivFeaturedImage">Forsidebillede</label>
-              <?php if (!empty($gallery_ids)) : ?>
+              <?php if (!empty($gallery_ids) || !empty($pdf_ids)) : ?>
                 <select id="arkivFeaturedImage" name="arkiv_featured_image">
-                  <option value="auto" <?php selected($featured_selected, 'auto'); ?>>Automatisk (første billede)</option>
+                  <option value="auto" <?php selected($featured_selected, 'auto'); ?>>Automatisk (første fil)</option>
                   <option value="0">Ingen forsidebillede</option>
                   <?php foreach ($gallery_ids as $att_id) :
                     $label = get_the_title($att_id);
@@ -185,9 +186,20 @@ if (have_posts()) : while (have_posts()) : the_post();
                       <?php echo esc_html($label); ?>
                     </option>
                   <?php endforeach; ?>
+                  <?php foreach ($pdf_ids as $att_id) :
+                    $label = get_the_title($att_id);
+                    if ($label === '') {
+                      $label = 'PDF #' . (int) $att_id;
+                    }
+                    $label = 'PDF: ' . $label;
+                    ?>
+                    <option value="<?php echo (int) $att_id; ?>" <?php selected($featured_selected, (int) $att_id); ?>>
+                      <?php echo esc_html($label); ?>
+                    </option>
+                  <?php endforeach; ?>
                 </select>
               <?php else : ?>
-                <p class="arkiv-edit-empty">Tilføj billeder for at vælge forsidebillede.</p>
+                <p class="arkiv-edit-empty">Tilføj billeder eller PDF'er for at vælge forsidebillede.</p>
               <?php endif; ?>
             </div>
 

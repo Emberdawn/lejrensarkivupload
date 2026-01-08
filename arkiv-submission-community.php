@@ -1535,6 +1535,7 @@ JS;
       wp_set_object_terms($post_id, [$term_id], $this->get_taxonomy_slug(), false);
     }
 
+    $attachment_ids = [];
     if ($include_images) {
       $attachment_ids = $this->handle_images_upload($post_id);
 
@@ -1547,6 +1548,9 @@ JS;
     $pdf_ids = $this->handle_pdfs_upload($post_id);
     if (!empty($pdf_ids)) {
       update_post_meta($post_id, self::META_PDF_IDS, $pdf_ids);
+      if (empty($attachment_ids) && !has_post_thumbnail($post_id)) {
+        set_post_thumbnail($post_id, $pdf_ids[0]);
+      }
     }
 
     return $post_id;
@@ -1739,6 +1743,13 @@ JS;
     $pdf_ids[] = (int) $attachment_id;
     update_post_meta($post_id, self::META_PDF_IDS, $pdf_ids);
 
+    if (!has_post_thumbnail($post_id)) {
+      $gallery_ids = get_post_meta($post_id, '_arkiv_gallery_ids', true);
+      if (!is_array($gallery_ids) || empty($gallery_ids)) {
+        set_post_thumbnail($post_id, $attachment_id);
+      }
+    }
+
     return (int) $attachment_id;
   }
 
@@ -1886,6 +1897,8 @@ JS;
       delete_post_meta($post_id, self::META_PDF_IDS);
     }
 
+    $thumbnail_candidates = array_merge($gallery_ids, $pdf_ids);
+
     if (array_key_exists('arkiv_featured_image', $request)) {
       $featured_input = sanitize_text_field(wp_unslash($request['arkiv_featured_image']));
       if ($featured_input === '0') {
@@ -1893,29 +1906,39 @@ JS;
       } elseif ($featured_input === 'auto' || $featured_input === '') {
         if (!empty($gallery_ids)) {
           set_post_thumbnail($post_id, $gallery_ids[0]);
+        } elseif (!empty($pdf_ids)) {
+          set_post_thumbnail($post_id, $pdf_ids[0]);
         } else {
           delete_post_thumbnail($post_id);
         }
       } else {
         $featured_id = absint($featured_input);
-        if ($featured_id && in_array((int) $featured_id, $gallery_ids, true)) {
+        if ($featured_id && in_array((int) $featured_id, $thumbnail_candidates, true)) {
           set_post_thumbnail($post_id, $featured_id);
         } elseif (!empty($gallery_ids)) {
           set_post_thumbnail($post_id, $gallery_ids[0]);
+        } elseif (!empty($pdf_ids)) {
+          set_post_thumbnail($post_id, $pdf_ids[0]);
         } else {
           delete_post_thumbnail($post_id);
         }
       }
     } else {
       $thumbnail_id = get_post_thumbnail_id($post_id);
-      if ($thumbnail_id && !in_array((int) $thumbnail_id, $gallery_ids, true)) {
+      if ($thumbnail_id && !in_array((int) $thumbnail_id, $thumbnail_candidates, true)) {
         if (!empty($gallery_ids)) {
           set_post_thumbnail($post_id, $gallery_ids[0]);
+        } elseif (!empty($pdf_ids)) {
+          set_post_thumbnail($post_id, $pdf_ids[0]);
         } else {
           delete_post_thumbnail($post_id);
         }
-      } elseif (!$thumbnail_id && !empty($gallery_ids)) {
-        set_post_thumbnail($post_id, $gallery_ids[0]);
+      } elseif (!$thumbnail_id && (!empty($gallery_ids) || !empty($pdf_ids))) {
+        if (!empty($gallery_ids)) {
+          set_post_thumbnail($post_id, $gallery_ids[0]);
+        } else {
+          set_post_thumbnail($post_id, $pdf_ids[0]);
+        }
       }
     }
   }
@@ -2064,7 +2087,8 @@ JS;
       $pdf_ids = [];
     }
     $thumbnail_id = get_post_thumbnail_id($post_id);
-    $featured_selected = ($thumbnail_id && in_array((int) $thumbnail_id, $gallery_ids, true)) ? (int) $thumbnail_id : 'auto';
+    $thumbnail_candidates = array_merge($gallery_ids, $pdf_ids);
+    $featured_selected = ($thumbnail_id && in_array((int) $thumbnail_id, $thumbnail_candidates, true)) ? (int) $thumbnail_id : 'auto';
 
     if ($post->post_status !== 'pending') {
       echo '<div class="notice notice-warning"><p>Dette indlæg er ikke længere markeret som afventende.</p></div>';
@@ -2187,9 +2211,9 @@ JS;
 
       <div class="arkiv-edit-featured" style="margin-top:18px;">
         <label class="arkiv-edit-label" for="arkivFeaturedImage">Forsidebillede</label>
-        <?php if (!empty($gallery_ids)) : ?>
+        <?php if (!empty($gallery_ids) || !empty($pdf_ids)) : ?>
           <select id="arkivFeaturedImage" name="arkiv_featured_image">
-            <option value="auto" <?php selected($featured_selected, 'auto'); ?>>Automatisk (første billede)</option>
+            <option value="auto" <?php selected($featured_selected, 'auto'); ?>>Automatisk (første fil)</option>
             <option value="0">Ingen forsidebillede</option>
             <?php foreach ($gallery_ids as $att_id) :
               $label = get_the_title($att_id);
@@ -2201,9 +2225,20 @@ JS;
                 <?php echo esc_html($label); ?>
               </option>
             <?php endforeach; ?>
+            <?php foreach ($pdf_ids as $att_id) :
+              $label = get_the_title($att_id);
+              if ($label === '') {
+                $label = 'PDF #' . (int) $att_id;
+              }
+              $label = 'PDF: ' . $label;
+              ?>
+              <option value="<?php echo (int) $att_id; ?>" <?php selected($featured_selected, (int) $att_id); ?>>
+                <?php echo esc_html($label); ?>
+              </option>
+            <?php endforeach; ?>
           </select>
         <?php else : ?>
-          <p class="arkiv-edit-empty">Tilføj billeder for at vælge forsidebillede.</p>
+          <p class="arkiv-edit-empty">Tilføj billeder eller PDF'er for at vælge forsidebillede.</p>
         <?php endif; ?>
       </div>
 
