@@ -144,10 +144,6 @@ class Arkiv_Submission_Plugin {
         <input id="arkivUploadImages" type="file" name="arkiv_images[]" accept="image/*" multiple data-max-files="50">
         <br><small>Tip: Vælg gerne 1–50 billeder. Første billede bruges som forsidebillede.</small>
         <div class="arkiv-upload-preview" id="arkivUploadPreview"></div>
-        <p class="arkiv-upload-status" id="arkivUploadStatus" aria-live="polite">
-          <span class="arkiv-upload-status-text"></span>
-          <span class="arkiv-upload-spinner" aria-hidden="true"></span>
-        </p>
       </p>
 
       <p>
@@ -162,6 +158,11 @@ class Arkiv_Submission_Plugin {
           <input type="checkbox" name="arkiv_comments_enabled" value="1" checked>
           <strong>Kan kommenteres</strong>
         </label>
+      </p>
+
+      <p class="arkiv-upload-status" id="arkivUploadStatus" aria-live="polite">
+        <span class="arkiv-upload-status-text"></span>
+        <span class="arkiv-upload-spinner" aria-hidden="true"></span>
       </p>
 
       <p>
