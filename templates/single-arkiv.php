@@ -70,6 +70,7 @@ if (have_posts()) : while (have_posts()) : the_post();
         <section class="arkiv-edit">
           <form class="arkiv-edit-form" method="post" enctype="multipart/form-data" action="<?php echo esc_url($edit_url); ?>">
             <?php wp_nonce_field('arkiv_edit_action', 'arkiv_edit_nonce'); ?>
+            <?php wp_nonce_field('arkiv_submit_action', 'arkiv_submit_nonce'); ?>
             <input type="hidden" name="arkiv_edit_post_id" value="<?php echo (int) $post_id; ?>">
             <input type="hidden" name="arkiv_delete_images" id="arkivDeleteImages" value="">
             <input type="hidden" name="arkiv_delete_pdfs" id="arkivDeletePdfs" value="">
@@ -160,15 +161,19 @@ if (have_posts()) : while (have_posts()) : the_post();
 
             <div class="arkiv-edit-upload">
               <label class="arkiv-edit-label" for="arkivEditImages">Upload flere billeder</label>
-              <input id="arkivEditImages" type="file" name="arkiv_images[]" accept="image/*" multiple>
+              <input id="arkivEditImages" type="file" name="arkiv_images[]" accept="image/*" multiple data-max-files="50">
               <div class="arkiv-edit-preview" id="arkivEditPreview"></div>
             </div>
 
             <div class="arkiv-edit-upload">
               <label class="arkiv-edit-label" for="arkivEditPdfs">Upload flere PDF'er</label>
-              <input id="arkivEditPdfs" type="file" name="arkiv_pdfs[]" accept="application/pdf" multiple>
+              <input id="arkivEditPdfs" type="file" name="arkiv_pdfs[]" accept="application/pdf" multiple data-max-files="20">
               <div class="arkiv-edit-preview" id="arkivEditPdfPreview"></div>
             </div>
+            <p class="arkiv-edit-status" id="arkivEditUploadStatus" aria-live="polite">
+              <span class="arkiv-edit-status-text"></span>
+              <span class="arkiv-edit-spinner" aria-hidden="true"></span>
+            </p>
 
             <div class="arkiv-edit-featured">
               <label class="arkiv-edit-label" for="arkivFeaturedImage">Forsidebillede</label>
@@ -517,6 +522,103 @@ if (have_posts()) : while (have_posts()) : the_post();
       word-break: break-word;
     }
 
+    .arkiv-edit-preview .arkiv-upload-item {
+      background: #f7f7f7;
+      border-radius: 12px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.05);
+    }
+
+    .arkiv-edit-preview .arkiv-upload-thumb {
+      width: 100%;
+      border-radius: 10px;
+      object-fit: cover;
+      background: #fff;
+    }
+
+    .arkiv-edit-preview .arkiv-upload-pdf {
+      width: 100%;
+      min-height: 120px;
+      border-radius: 10px;
+      background: #fff;
+      border: 1px dashed #d8d8d8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+      color: #d63638;
+    }
+
+    .arkiv-edit-preview .arkiv-upload-name {
+      font-size: 12px;
+      color: #333;
+      word-break: break-word;
+    }
+
+    .arkiv-edit-preview .arkiv-upload-bar {
+      position: relative;
+      height: 6px;
+      border-radius: 999px;
+      background: #e1e1e1;
+      overflow: hidden;
+    }
+
+    .arkiv-edit-preview .arkiv-upload-bar span {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      width: 0%;
+      background: #111;
+      transition: width 0.2s ease;
+    }
+
+    .arkiv-edit-preview .arkiv-upload-bar.is-error span {
+      background: #dc3232;
+    }
+
+    .arkiv-edit-preview .arkiv-upload-state {
+      font-size: 12px;
+      color: #555;
+    }
+
+    .arkiv-edit-preview .arkiv-upload-state.is-error {
+      color: #dc3232;
+    }
+
+    .arkiv-edit-status {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #555;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .arkiv-edit-spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(17, 17, 17, 0.2);
+      border-top-color: rgba(17, 17, 17, 0.7);
+      border-radius: 50%;
+      animation: arkiv-spin 0.8s linear infinite;
+      display: none;
+    }
+
+    .arkiv-edit-status.is-busy .arkiv-edit-spinner {
+      display: inline-block;
+    }
+
+    .arkiv-edit-form.is-uploading .arkiv-edit-actions button,
+    .arkiv-edit-form.is-uploading .arkiv-edit-actions a {
+      pointer-events: none;
+      opacity: 0.6;
+    }
+
     .arkiv-edit-actions {
       display: flex;
       gap: 12px;
@@ -552,6 +654,12 @@ if (have_posts()) : while (have_posts()) : the_post();
       border: none;
       cursor: pointer;
       font-size: 15px;
+    }
+
+    @keyframes arkiv-spin {
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     /* ===== Arkiv Lightbox ===== */
@@ -736,6 +844,7 @@ endwhile; endif;
 ?>
 <script>
 (function () {
+  const form = document.querySelector('.arkiv-edit-form');
   const deleteButtons = document.querySelectorAll('.arkiv-delete-image');
   const deleteInput = document.getElementById('arkivDeleteImages');
   const deletePdfButtons = document.querySelectorAll('.arkiv-delete-pdf');
@@ -744,7 +853,11 @@ endwhile; endif;
   const previewWrap = document.getElementById('arkivEditPreview');
   const pdfUploadInput = document.getElementById('arkivEditPdfs');
   const pdfPreviewWrap = document.getElementById('arkivEditPdfPreview');
+  const statusEl = document.getElementById('arkivEditUploadStatus');
+  const statusText = statusEl ? statusEl.querySelector('.arkiv-edit-status-text') : null;
   const deletePostButton = document.querySelector('.arkiv-edit-delete');
+  let imageMeta = [];
+  let pdfMeta = [];
 
   if (deleteButtons.length && deleteInput) {
     deleteButtons.forEach(button => {
@@ -767,23 +880,147 @@ endwhile; endif;
     });
   }
 
-  if (uploadInput && previewWrap) {
-    uploadInput.addEventListener('change', function () {
-      previewWrap.innerHTML = '';
-      const files = Array.from(uploadInput.files || []).filter(file => file.type.startsWith('image/'));
-      files.forEach(file => {
-        if (!file.type.startsWith('image/')) {
+  function setStatus(message, busy = false) {
+    if (!statusEl || !statusText) return;
+    statusText.textContent = message || '';
+    statusEl.classList.toggle('is-busy', Boolean(busy));
+  }
+
+  function isPdfFile(file) {
+    if (!file) return false;
+    if (file.type === 'application/pdf') return true;
+    return file.name && file.name.toLowerCase().endsWith('.pdf');
+  }
+
+  function updateProgress(meta, loaded) {
+    const size = meta.size || 0;
+    const percent = size ? Math.round((loaded / size) * 100) : 100;
+    meta.bar.style.width = `${Math.min(100, percent)}%`;
+  }
+
+  function setItemState(meta, state, isError = false) {
+    meta.state.textContent = state;
+    meta.state.classList.toggle('is-error', isError);
+    meta.barWrap.classList.toggle('is-error', isError);
+  }
+
+  function buildPreview(files, config) {
+    const wrap = config.wrap;
+    const isPdf = config.isPdf;
+    const maxFiles = config.maxFiles;
+    wrap.innerHTML = '';
+    const metaList = [];
+
+    if (!files.length) {
+      setStatus('');
+      return metaList;
+    }
+
+    if (files.length > maxFiles) {
+      setStatus(`Du kan max uploade ${maxFiles} filer ad gangen.`);
+    } else {
+      setStatus('');
+    }
+
+    files.slice(0, maxFiles).forEach(file => {
+      const item = document.createElement('div');
+      item.className = 'arkiv-upload-item';
+
+      if (isPdf) {
+        const pdfBadge = document.createElement('div');
+        pdfBadge.className = 'arkiv-upload-pdf';
+        pdfBadge.textContent = 'PDF';
+        item.appendChild(pdfBadge);
+      } else {
+        const img = document.createElement('img');
+        img.className = 'arkiv-upload-thumb';
+        img.alt = file.name;
+        item.appendChild(img);
+      }
+
+      const name = document.createElement('div');
+      name.className = 'arkiv-upload-name';
+      name.textContent = file.name;
+      item.appendChild(name);
+
+      const barWrap = document.createElement('div');
+      barWrap.className = 'arkiv-upload-bar';
+      const bar = document.createElement('span');
+      barWrap.appendChild(bar);
+      item.appendChild(barWrap);
+
+      const state = document.createElement('div');
+      state.className = 'arkiv-upload-state';
+      state.textContent = 'Venter';
+      item.appendChild(state);
+
+      wrap.appendChild(item);
+
+      if (!isPdf && file.type.startsWith('image/')) {
+        const img = item.querySelector('img');
+        if (img) {
+          const reader = new FileReader();
+          reader.onload = event => {
+            img.src = event.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+
+      metaList.push({
+        file,
+        size: file.size || 0,
+        bar,
+        barWrap,
+        state,
+      });
+    });
+
+    return metaList;
+  }
+
+  function uploadSingleFile(meta, postId, nonce, action, fieldName) {
+    return new Promise(resolve => {
+      const formData = new FormData();
+      formData.append('action', action);
+      formData.append('post_id', postId);
+      formData.append('arkiv_submit_nonce', nonce);
+      formData.append(fieldName, meta.file);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '<?php echo esc_url(admin_url('admin-ajax.php')); ?>');
+      xhr.responseType = 'json';
+
+      xhr.upload.addEventListener('progress', function (event) {
+        if (!event.lengthComputable) return;
+        updateProgress(meta, event.loaded);
+      });
+
+      xhr.addEventListener('load', function () {
+        if (xhr.status >= 200 && xhr.status < 300 && xhr.response && xhr.response.success) {
+          updateProgress(meta, meta.size || 0);
+          setItemState(meta, 'Færdig');
+          resolve(true);
           return;
         }
-        const img = document.createElement('img');
-        img.alt = file.name;
-        previewWrap.appendChild(img);
-        const reader = new FileReader();
-        reader.onload = function (event) {
-          img.src = event.target.result;
-        };
-        reader.readAsDataURL(file);
+        setItemState(meta, 'fejl', true);
+        resolve(false);
       });
+
+      xhr.addEventListener('error', function () {
+        setItemState(meta, 'fejl', true);
+        resolve(false);
+      });
+
+      xhr.send(formData);
+    });
+  }
+
+  if (uploadInput && previewWrap) {
+    uploadInput.addEventListener('change', function () {
+      const files = Array.from(uploadInput.files || []).filter(file => file.type.startsWith('image/'));
+      const maxFiles = parseInt(uploadInput.dataset.maxFiles, 10) || 50;
+      imageMeta = buildPreview(files, { wrap: previewWrap, maxFiles, isPdf: false });
     });
   }
 
@@ -810,14 +1047,96 @@ endwhile; endif;
 
   if (pdfUploadInput && pdfPreviewWrap) {
     pdfUploadInput.addEventListener('change', function () {
-      pdfPreviewWrap.innerHTML = '';
-      const files = Array.from(pdfUploadInput.files || []).filter(file => file.type === 'application/pdf');
-      files.forEach(file => {
-        const item = document.createElement('div');
-        item.className = 'arkiv-edit-pdf';
-        item.textContent = file.name;
-        pdfPreviewWrap.appendChild(item);
+      const files = Array.from(pdfUploadInput.files || []).filter(file => isPdfFile(file));
+      const maxFiles = parseInt(pdfUploadInput.dataset.maxFiles, 10) || 20;
+      pdfMeta = buildPreview(files, { wrap: pdfPreviewWrap, maxFiles, isPdf: true });
+    });
+  }
+
+  if (form && uploadInput && pdfUploadInput) {
+    form.addEventListener('submit', function (event) {
+      if (!window.FormData || !window.XMLHttpRequest) {
+        return;
+      }
+
+      const files = Array.from(uploadInput.files || []).filter(file => file.type.startsWith('image/'));
+      const pdfFiles = Array.from(pdfUploadInput.files || []).filter(file => isPdfFile(file));
+      const maxImageFiles = parseInt(uploadInput.dataset.maxFiles, 10) || 50;
+      const maxPdfFiles = parseInt(pdfUploadInput.dataset.maxFiles, 10) || 20;
+
+      if (files.length > maxImageFiles) {
+        event.preventDefault();
+        setStatus(`Du kan max uploade ${maxImageFiles} filer ad gangen.`);
+        return;
+      }
+      if (pdfFiles.length > maxPdfFiles) {
+        event.preventDefault();
+        setStatus(`Du kan max uploade ${maxPdfFiles} filer ad gangen.`);
+        return;
+      }
+
+      event.preventDefault();
+      form.classList.add('is-uploading');
+      setStatus('Gemmer ændringer...', true);
+
+      const formData = new FormData(form);
+      formData.delete('arkiv_images[]');
+      formData.delete('arkiv_pdfs[]');
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', form.action);
+      xhr.responseType = 'text';
+
+      xhr.addEventListener('load', async function () {
+        if (!(xhr.status >= 200 && xhr.status < 400)) {
+          form.classList.remove('is-uploading');
+          setStatus('Noget gik galt. Prøv igen.');
+          return;
+        }
+
+        const postId = form.querySelector('[name="arkiv_edit_post_id"]')?.value || '';
+        const nonce = form.querySelector('[name="arkiv_submit_nonce"]')?.value || '';
+        let hadError = false;
+
+        for (let i = 0; i < imageMeta.length; i++) {
+          const meta = imageMeta[i];
+          setItemState(meta, 'Uploader');
+          setStatus(`Uploader billede ${i + 1} af ${imageMeta.length}...`, true);
+          const ok = await uploadSingleFile(meta, postId, nonce, 'arkiv_upload_image', 'arkiv_single_image');
+          if (!ok) {
+            hadError = true;
+          }
+        }
+
+        for (let i = 0; i < pdfMeta.length; i++) {
+          const meta = pdfMeta[i];
+          setItemState(meta, 'Uploader');
+          setStatus(`Uploader PDF ${i + 1} af ${pdfMeta.length}...`, true);
+          const ok = await uploadSingleFile(meta, postId, nonce, 'arkiv_upload_pdf', 'arkiv_single_pdf');
+          if (!ok) {
+            hadError = true;
+          }
+        }
+
+        form.classList.remove('is-uploading');
+
+        if (hadError) {
+          setStatus('Nogle filer fejlede. Prøv igen.');
+          return;
+        }
+
+        const redirectUrl = new URL(form.action, window.location.href);
+        redirectUrl.searchParams.delete('arkiv_edit');
+        setStatus('Færdig', true);
+        window.location.href = redirectUrl.toString();
       });
+
+      xhr.addEventListener('error', function () {
+        form.classList.remove('is-uploading');
+        setStatus('Noget gik galt. Prøv igen.');
+      });
+
+      xhr.send(formData);
     });
   }
 
