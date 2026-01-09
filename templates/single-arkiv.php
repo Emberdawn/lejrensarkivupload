@@ -1080,6 +1080,10 @@ endwhile; endif;
       setStatus('Gemmer ændringer...', true);
 
       const formData = new FormData(form);
+      const submitter = event.submitter;
+      if (submitter && submitter.name) {
+        formData.append(submitter.name, submitter.value || '1');
+      }
       formData.delete('arkiv_images[]');
       formData.delete('arkiv_pdfs[]');
 
