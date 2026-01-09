@@ -1099,6 +1099,10 @@ endwhile; endif;
       form.classList.add('is-uploading');
       setStatus('Gemmer ændringer...', true);
 
+      if (window.tinymce && typeof window.tinymce.triggerSave === 'function') {
+        window.tinymce.triggerSave();
+      }
+
       const formData = new FormData(form);
       const submitter = event.submitter;
       if (submitter && submitter.name) {
