@@ -979,7 +979,11 @@ endwhile; endif;
     return metaList;
   }
 
-  function uploadSingleFile(meta, postId, nonce, action, fieldName) {
+  function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  function uploadSingleAttempt(meta, postId, nonce, action, fieldName) {
     return new Promise(resolve => {
       const formData = new FormData();
       formData.append('action', action);
@@ -999,21 +1003,37 @@ endwhile; endif;
       xhr.addEventListener('load', function () {
         if (xhr.status >= 200 && xhr.status < 300 && xhr.response && xhr.response.success) {
           updateProgress(meta, meta.size || 0);
-          setItemState(meta, 'Færdig');
           resolve(true);
           return;
         }
-        setItemState(meta, 'fejl', true);
         resolve(false);
       });
 
       xhr.addEventListener('error', function () {
-        setItemState(meta, 'fejl', true);
         resolve(false);
       });
 
       xhr.send(formData);
     });
+  }
+
+  async function uploadSingleFile(meta, postId, nonce, action, fieldName) {
+    const maxRetries = 10;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (attempt > 0) {
+        setItemState(meta, `Prøver igen (${attempt}/${maxRetries})`, true);
+        setStatus(`Upload fejlede. Prøver igen (${attempt}/${maxRetries})...`, true);
+        await wait(500);
+      }
+      setItemState(meta, 'Uploader');
+      const ok = await uploadSingleAttempt(meta, postId, nonce, action, fieldName);
+      if (ok) {
+        setItemState(meta, 'Færdig');
+        return true;
+      }
+    }
+    setItemState(meta, 'fejl', true);
+    return false;
   }
 
   if (uploadInput && previewWrap) {
