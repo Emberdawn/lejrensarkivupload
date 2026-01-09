@@ -1794,7 +1794,7 @@ JS;
 
   private function update_post_from_request($post_id, array $request, $status = null) {
     $new_title = isset($request['arkiv_edit_title']) ? sanitize_text_field(wp_unslash($request['arkiv_edit_title'])) : '';
-    $new_content = isset($request['arkiv_edit_content']) ? wp_kses_post($request['arkiv_edit_content']) : '';
+    $new_content = isset($request['arkiv_edit_content']) ? wp_kses_post(wp_unslash($request['arkiv_edit_content'])) : '';
 
     $update_data = [
       'ID' => $post_id,
