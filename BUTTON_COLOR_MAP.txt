@@ -1,0 +1,59 @@
+Button color map for Arkiv Submission Community plugin
+=====================================================
+
+Front-end (public theme/BuddyX styling)
+--------------------------------------
+1) Submission form submit button “Send til godkendelse”
+   - Location: arkiv-submission-community.php (rendered form markup near the submit button).
+   - Color source: no color defined in the plugin (only inline padding). It will inherit the
+     theme’s button styling for <button type="submit">.
+   - Change it in WordPress/BuddyX: update the theme’s button styles (Customizer/theme CSS).
+
+2) “Rediger” button (edit link)
+   - Location: templates/single-arkiv.php → .arkiv-edit-button.
+   - Color set here: background #111, text color #fff.
+   - Change it: edit the .arkiv-edit-button CSS in templates/single-arkiv.php.
+
+3) “Slet” buttons on image/PDF tiles (edit form)
+   - Location: templates/single-arkiv.php → .arkiv-delete-image and .arkiv-delete-pdf.
+   - Color set here: background rgba(17,17,17,.9), text color #fff.
+   - Change it: edit the .arkiv-delete-image/.arkiv-delete-pdf CSS in templates/single-arkiv.php.
+
+4) Edit form action buttons (“Gem”, “Annuller”, “Slet indlæg”)
+   - Location: templates/single-arkiv.php → .arkiv-edit-save, .arkiv-edit-cancel, .arkiv-edit-delete.
+   - Colors set here:
+     - .arkiv-edit-save: background #111, text #fff.
+     - .arkiv-edit-cancel: background #e8e8e8, text #111.
+     - .arkiv-edit-delete: background #d63638, text #fff.
+   - Change it: edit these selectors in templates/single-arkiv.php.
+
+5) Lightbox controls (close/prev/next)
+   - Location: templates/single-arkiv.php → .arkiv-lightbox-close, .arkiv-lightbox-nav.
+   - Colors set here:
+     - .arkiv-lightbox-close: text color #fff, background transparent.
+     - .arkiv-lightbox-nav: text color #fff, background rgba(0,0,0,.35).
+   - Change it: edit the lightbox CSS in templates/single-arkiv.php.
+
+Admin (WordPress dashboard)
+---------------------------
+6) “Vælg billede”, “Fjern”, “Gem ændringer”, “Opret mappe”, “Slet” (Mappe admin)
+   - Location: arkiv-submission-community.php → admin forms use WordPress admin button classes
+     (.button, .button-link-delete) and submit_button().
+   - Color source: WordPress admin CSS controls these button classes.
+   - Change it: adjust wp-admin button styles (custom admin CSS or admin theme/plugin).
+
+7) Review screen action buttons (“Godkend”, “Annuler”, “Slet indlæg”)
+   - Location: arkiv-submission-community.php → admin review form.
+   - Color source:
+     - “Godkend” uses .button.button-primary → WordPress admin button styles.
+     - “Annuler” uses .button → WordPress admin button styles.
+     - “Slet indlæg” has inline style: background #d63638, text #fff, border-color #b32d2e.
+   - Change it:
+     - For “Godkend/Annuler”: WordPress admin button styling.
+     - For “Slet indlæg”: update the inline style in arkiv-submission-community.php.
+
+Notes
+-----
+- If you need BuddyX-specific settings: BuddyX typically inherits WordPress theme button styling
+  on the front-end. This plugin only hard-codes colors where noted above; everything else comes
+  from your active theme or WordPress admin CSS.
