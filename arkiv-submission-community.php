@@ -2654,6 +2654,13 @@ JS;
       }
     }
 
+    if (is_post_type_archive($this->get_post_type_slug())) {
+      $archive_template = plugin_dir_path(__FILE__) . 'templates/archive-arkiv.php';
+      if (file_exists($archive_template)) {
+        return $archive_template;
+      }
+    }
+
     if (is_tax($this->get_taxonomy_slug())) {
       $plugin_template = plugin_dir_path(__FILE__) . 'templates/taxonomy-mappe.php';
       if (file_exists($plugin_template)) {
