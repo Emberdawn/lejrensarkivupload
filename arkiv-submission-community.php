@@ -2552,7 +2552,8 @@ JS;
       return;
     }
 
-    if ((int) $post->post_author !== get_current_user_id()) {
+    $is_admin = current_user_can('administrator');
+    if (!$is_admin && (int) $post->post_author !== get_current_user_id()) {
       return;
     }
 
