@@ -1908,6 +1908,48 @@ JS;
       $pdf_ids = $remaining_pdfs;
     }
 
+    $order_images = [];
+    if (!empty($request['arkiv_image_order'])) {
+      $order_images = array_filter(array_map('absint', explode(',', wp_unslash($request['arkiv_image_order']))));
+    }
+    if (!empty($order_images)) {
+      $ordered = [];
+      $seen = [];
+      foreach ($order_images as $att_id) {
+        if (in_array((int) $att_id, $gallery_ids, true) && empty($seen[$att_id])) {
+          $ordered[] = (int) $att_id;
+          $seen[$att_id] = true;
+        }
+      }
+      foreach ($gallery_ids as $att_id) {
+        if (empty($seen[$att_id])) {
+          $ordered[] = (int) $att_id;
+        }
+      }
+      $gallery_ids = $ordered;
+    }
+
+    $order_pdfs = [];
+    if (!empty($request['arkiv_pdf_order'])) {
+      $order_pdfs = array_filter(array_map('absint', explode(',', wp_unslash($request['arkiv_pdf_order']))));
+    }
+    if (!empty($order_pdfs)) {
+      $ordered = [];
+      $seen = [];
+      foreach ($order_pdfs as $att_id) {
+        if (in_array((int) $att_id, $pdf_ids, true) && empty($seen[$att_id])) {
+          $ordered[] = (int) $att_id;
+          $seen[$att_id] = true;
+        }
+      }
+      foreach ($pdf_ids as $att_id) {
+        if (empty($seen[$att_id])) {
+          $ordered[] = (int) $att_id;
+        }
+      }
+      $pdf_ids = $ordered;
+    }
+
     $new_uploads = $this->handle_images_upload($post_id);
     if (!empty($new_uploads)) {
       $gallery_ids = array_values(array_merge($gallery_ids, $new_uploads));

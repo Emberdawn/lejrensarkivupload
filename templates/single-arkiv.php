@@ -74,6 +74,8 @@ if (have_posts()) : while (have_posts()) : the_post();
             <input type="hidden" name="arkiv_edit_post_id" value="<?php echo (int) $post_id; ?>">
             <input type="hidden" name="arkiv_delete_images" id="arkivDeleteImages" value="">
             <input type="hidden" name="arkiv_delete_pdfs" id="arkivDeletePdfs" value="">
+            <input type="hidden" name="arkiv_image_order" id="arkivImageOrder" value="">
+            <input type="hidden" name="arkiv_pdf_order" id="arkivPdfOrder" value="">
 
             <label class="arkiv-edit-label" for="arkivEditTitle">Titel</label>
             <input
@@ -116,13 +118,17 @@ if (have_posts()) : while (have_posts()) : the_post();
             <div class="arkiv-edit-images">
               <h2>Billeder</h2>
               <?php if (!empty($gallery_ids)) : ?>
-                <div class="arkiv-edit-grid">
+                <div class="arkiv-edit-grid arkiv-edit-grid--images">
                   <?php foreach ($gallery_ids as $att_id) :
                     $thumb = wp_get_attachment_image($att_id, 'medium', false, ['class' => 'arkiv-img']);
                     if (!$thumb) continue;
                     ?>
                     <div class="arkiv-edit-tile" data-att-id="<?php echo (int) $att_id; ?>">
                       <?php echo $thumb; ?>
+                      <div class="arkiv-move-buttons">
+                        <button class="arkiv-move-button" type="button" data-direction="up" aria-label="Flyt billede op">↑</button>
+                        <button class="arkiv-move-button" type="button" data-direction="down" aria-label="Flyt billede ned">↓</button>
+                      </div>
                       <button class="arkiv-delete-image" type="button">Slet</button>
                     </div>
                   <?php endforeach; ?>
@@ -135,7 +141,7 @@ if (have_posts()) : while (have_posts()) : the_post();
             <div class="arkiv-edit-images" style="margin-top:18px;">
               <h2>PDF-dokumenter</h2>
               <?php if (!empty($pdf_ids)) : ?>
-                <div class="arkiv-edit-grid">
+                <div class="arkiv-edit-grid arkiv-edit-grid--pdfs">
                   <?php foreach ($pdf_ids as $att_id) :
                     $thumb = wp_get_attachment_image($att_id, 'medium', false, ['class' => 'arkiv-pdf-thumb']);
                     if (!$thumb) {
@@ -150,6 +156,10 @@ if (have_posts()) : while (have_posts()) : the_post();
                       <?php if ($title !== '') : ?>
                         <div class="arkiv-edit-caption"><?php echo esc_html($title); ?></div>
                       <?php endif; ?>
+                      <div class="arkiv-move-buttons">
+                        <button class="arkiv-move-button" type="button" data-direction="up" aria-label="Flyt PDF op">↑</button>
+                        <button class="arkiv-move-button" type="button" data-direction="down" aria-label="Flyt PDF ned">↓</button>
+                      </div>
                       <button class="arkiv-delete-pdf" type="button">Slet</button>
                     </div>
                   <?php endforeach; ?>
@@ -433,6 +443,35 @@ if (have_posts()) : while (have_posts()) : the_post();
       padding: 10px;
       border-radius: 12px;
       box-shadow: 0 1px 2px rgba(0,0,0,.05);
+    }
+
+    .arkiv-move-buttons {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      display: flex;
+      gap: 6px;
+      z-index: 2;
+    }
+
+    .arkiv-move-button {
+      border: none;
+      background: rgba(17,17,17,.9);
+      color: #fff;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .arkiv-move-button:disabled {
+      opacity: 0.4;
+      cursor: default;
     }
 
     .arkiv-delete-image {
@@ -850,6 +889,10 @@ endwhile; endif;
   const deleteInput = document.getElementById('arkivDeleteImages');
   const deletePdfButtons = document.querySelectorAll('.arkiv-delete-pdf');
   const deletePdfInput = document.getElementById('arkivDeletePdfs');
+  const imageOrderInput = document.getElementById('arkivImageOrder');
+  const pdfOrderInput = document.getElementById('arkivPdfOrder');
+  const imageGrid = document.querySelector('.arkiv-edit-grid--images');
+  const pdfGrid = document.querySelector('.arkiv-edit-grid--pdfs');
   const uploadInput = document.getElementById('arkivEditImages');
   const previewWrap = document.getElementById('arkivEditPreview');
   const pdfUploadInput = document.getElementById('arkivEditPdfs');
@@ -859,6 +902,54 @@ endwhile; endif;
   const deletePostButton = document.querySelector('.arkiv-edit-delete');
   let imageMeta = [];
   let pdfMeta = [];
+
+  function updateOrderInput(grid, input, idKey) {
+    if (!grid || !input) return;
+    const ids = Array.from(grid.querySelectorAll('.arkiv-edit-tile'))
+      .map(tile => tile.dataset[idKey])
+      .filter(Boolean);
+    input.value = ids.join(',');
+  }
+
+  function refreshMoveButtons(grid) {
+    if (!grid) return;
+    const tiles = Array.from(grid.querySelectorAll('.arkiv-edit-tile'));
+    tiles.forEach((tile, index) => {
+      const up = tile.querySelector('.arkiv-move-button[data-direction="up"]');
+      const down = tile.querySelector('.arkiv-move-button[data-direction="down"]');
+      if (up) up.disabled = index === 0;
+      if (down) down.disabled = index === tiles.length - 1;
+    });
+  }
+
+  function initMoveButtons(grid, input, idKey) {
+    if (!grid) return;
+    grid.querySelectorAll('.arkiv-move-button').forEach(button => {
+      button.addEventListener('click', function () {
+        const tile = this.closest('.arkiv-edit-tile');
+        if (!tile) return;
+        const direction = this.dataset.direction;
+        if (direction === 'up') {
+          const prev = tile.previousElementSibling;
+          if (prev) {
+            grid.insertBefore(tile, prev);
+          }
+        } else if (direction === 'down') {
+          const next = tile.nextElementSibling;
+          if (next) {
+            grid.insertBefore(next, tile);
+          }
+        }
+        refreshMoveButtons(grid);
+        updateOrderInput(grid, input, idKey);
+      });
+    });
+    refreshMoveButtons(grid);
+    updateOrderInput(grid, input, idKey);
+  }
+
+  initMoveButtons(imageGrid, imageOrderInput, 'attId');
+  initMoveButtons(pdfGrid, pdfOrderInput, 'pdfId');
 
   if (deleteButtons.length && deleteInput) {
     deleteButtons.forEach(button => {
@@ -877,6 +968,8 @@ endwhile; endif;
           deleteInput.value = current.join(',');
         }
         tile.remove();
+        refreshMoveButtons(imageGrid);
+        updateOrderInput(imageGrid, imageOrderInput, 'attId');
       });
     });
   }
@@ -1062,6 +1155,8 @@ endwhile; endif;
           deletePdfInput.value = current.join(',');
         }
         tile.remove();
+        refreshMoveButtons(pdfGrid);
+        updateOrderInput(pdfGrid, pdfOrderInput, 'pdfId');
       });
     });
   }
