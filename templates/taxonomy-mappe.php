@@ -45,7 +45,7 @@ get_header();
       id="mappeSearchInput"
       class="mappe-search__input"
       type="search"
-      placeholder="Søg efter mappe"
+      placeholder="Søg efter indlæg"
       aria-describedby="mappeSearchHelp"
     >
     <div id="mappeSearchHelp" class="screen-reader-text">
