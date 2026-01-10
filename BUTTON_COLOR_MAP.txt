@@ -57,3 +57,22 @@ Notes
 - If you need BuddyX-specific settings: BuddyX typically inherits WordPress theme button styling
   on the front-end. This plugin only hard-codes colors where noted above; everything else comes
   from your active theme or WordPress admin CSS.
+
+Bypass CSS (force override color)
+--------------------------------
+If you want to bypass theme styles and force a specific color, add custom CSS with higher
+specificity (or !important) to override the theme. Replace <insert_color> with your desired
+color value.
+
+Example (front-end submit button):
+button[type="submit"] {
+  background: <insert_color> !important;
+  border-color: <insert_color> !important;
+  color: #fff !important;
+}
+
+Example (edit button class):
+.arkiv-edit-button {
+  background: <insert_color> !important;
+  color: #fff !important;
+}
