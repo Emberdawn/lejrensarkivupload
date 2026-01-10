@@ -353,7 +353,7 @@ if (have_posts()) : while (have_posts()) : the_post();
       display: inline-flex;
       padding: 10px 18px;
       border-radius: 999px;
-      background: #111;
+      background: #9a8c98;
       color: #fff;
       text-decoration: none;
       font-size: 15px;
