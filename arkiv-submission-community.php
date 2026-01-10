@@ -585,7 +585,24 @@ class Arkiv_Submission_Plugin {
     }
 
     ob_start();
-    echo '<div class="mappe-knapper">';
+    $instance_id = uniqid('mappe-knapper-', true);
+    printf('<div class="mappe-knapper-block" data-mappe-knapper="%s">', esc_attr($instance_id));
+    ?>
+    <div class="mappe-search">
+      <label class="screen-reader-text" for="<?php echo esc_attr($instance_id); ?>-search">Søg i mapper</label>
+      <input
+        id="<?php echo esc_attr($instance_id); ?>-search"
+        class="mappe-search__input"
+        type="search"
+        placeholder="Søg efter mappe"
+        aria-describedby="<?php echo esc_attr($instance_id); ?>-search-help"
+      >
+      <div id="<?php echo esc_attr($instance_id); ?>-search-help" class="screen-reader-text">
+        Resultaterne opdateres, mens du skriver.
+      </div>
+    </div>
+    <div class="mappe-knapper">
+    <?php
 
     foreach ($terms as $term) {
       $url = get_term_link($term);
@@ -616,8 +633,10 @@ class Arkiv_Submission_Plugin {
       }
 
       printf(
-        '<a class="mappe-knap" href="%s">%s<span class="mappe-knap__text"><span class="mappe-knap__title">%s</span>%s</span></a>',
+        '<a class="mappe-knap" href="%s" data-mappe-title="%s" data-mappe-desc="%s">%s<span class="mappe-knap__text"><span class="mappe-knap__title">%s</span>%s</span></a>',
         esc_url($url),
+        esc_attr(wp_strip_all_tags($term->name)),
+        esc_attr(wp_strip_all_tags($description)),
         $image_html,
         esc_html($term->name),
         $description !== '' ? '<span class="mappe-knap__desc">' . esc_html($description) . '</span>' : ''
@@ -625,6 +644,62 @@ class Arkiv_Submission_Plugin {
     }
 
     echo '</div>';
+    ?>
+    <script>
+      (function () {
+        const block = document.querySelector('[data-mappe-knapper="<?php echo esc_js($instance_id); ?>"]');
+        if (!block) {
+          return;
+        }
+
+        const searchInput = block.querySelector('.mappe-search__input');
+        const container = block.querySelector('.mappe-knapper');
+        if (!searchInput || !container) {
+          return;
+        }
+
+        const items = Array.from(container.querySelectorAll('.mappe-knap'));
+        const originalOrder = items.slice();
+        const normalised = items.map((item) => ({
+          element: item,
+          title: (item.dataset.mappeTitle || '').toLowerCase(),
+          desc: (item.dataset.mappeDesc || '').toLowerCase(),
+        }));
+
+        const applyFilter = () => {
+          const query = searchInput.value.trim().toLowerCase();
+          if (!query) {
+            originalOrder.forEach((item) => {
+              item.style.display = '';
+              container.appendChild(item);
+            });
+            return;
+          }
+
+          const titleMatches = [];
+          const descMatches = [];
+          normalised.forEach((entry) => {
+            if (entry.title.includes(query)) {
+              titleMatches.push(entry.element);
+            } else if (entry.desc.includes(query)) {
+              descMatches.push(entry.element);
+            } else {
+              entry.element.style.display = 'none';
+            }
+          });
+
+          const ordered = titleMatches.concat(descMatches);
+          ordered.forEach((item) => {
+            item.style.display = '';
+            container.appendChild(item);
+          });
+        };
+
+        searchInput.addEventListener('input', applyFilter);
+      })();
+    </script>
+    </div>
+    <?php
     return ob_get_clean();
   }
 
@@ -636,6 +711,19 @@ class Arkiv_Submission_Plugin {
         flex-wrap: wrap;
         gap: 10px;
         margin-bottom: 20px;
+      }
+
+      .mappe-search {
+        margin: 16px 0 8px;
+      }
+
+      .mappe-search__input {
+        width: 100%;
+        max-width: 480px;
+        padding: 10px 12px;
+        border: 1px solid #d7d7d7;
+        border-radius: 6px;
+        font-size: 16px;
       }
 
       .mappe-knap {
