@@ -351,15 +351,16 @@ if (have_posts()) : while (have_posts()) : the_post();
     .arkiv-content { margin-top: 18px; font-size: 16px; line-height: 1.7; }
     .arkiv-edit-button {
       display: inline-flex;
-      padding: 8px 14px;
+      padding: 10px 18px;
       border-radius: 999px;
       background: #111;
       color: #fff;
       text-decoration: none;
-      font-size: 14px;
+      font-size: 15px;
       margin-top: 8px;
       align-items: center;
       gap: 6px;
+      cursor: pointer;
     }
 
     .arkiv-gallery { margin-top: 28px; }
