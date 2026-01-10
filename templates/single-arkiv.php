@@ -9,7 +9,9 @@ if (have_posts()) : while (have_posts()) : the_post();
   $author = $author_id ? get_userdata($author_id) : null;
   $author_name = $author ? $author->display_name : '';
   $is_author = is_user_logged_in() && (int) get_current_user_id() === $author_id;
-  $is_edit = $is_author && !empty($_GET['arkiv_edit']);
+  $is_admin = is_user_logged_in() && current_user_can('administrator');
+  $can_edit = $is_author || $is_admin;
+  $is_edit = $can_edit && !empty($_GET['arkiv_edit']);
   $edit_url = add_query_arg('arkiv_edit', '1', get_permalink($post_id));
 
   // Taxonomy terms (Mappe)
@@ -61,7 +63,7 @@ if (have_posts()) : while (have_posts()) : the_post();
         <?php if ($author_name !== '') : ?>
           <p class="arkiv-author">Forfatter: <?php echo esc_html($author_name); ?></p>
         <?php endif; ?>
-        <?php if ($is_author && !$is_edit) : ?>
+        <?php if ($can_edit && !$is_edit) : ?>
           <a class="arkiv-edit-button" href="<?php echo esc_url($edit_url); ?>">Rediger</a>
         <?php endif; ?>
       </header>
