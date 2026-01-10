@@ -58,142 +58,59 @@ Notes
   on the front-end. This plugin only hard-codes colors where noted above; everything else comes
   from your active theme or WordPress admin CSS.
 
-Bypass CSS (force override color)
---------------------------------
-If you want to bypass theme styles and force a specific color, add custom CSS with higher
-specificity (or !important) to override the theme. Replace <insert_color> with your desired
-color value.
+Finished CSS overrides (copy/paste)
+-----------------------------------
+Use the snippet below to override each button with the current values (and !important).
 
-Example (front-end submit button):
-button[type="submit"] {
-  background: <insert_color> !important;
-  border-color: <insert_color> !important;
-  color: #fff !important;
-}
-
-Example (edit button class):
-.arkiv-edit-button {
-  background: <insert_color> !important;
-  color: #fff !important;
-}
-
-Bypass CSS (copy/paste overrides with current values)
-----------------------------------------------------
-Use the snippets below to override each button with the current, hard-coded values.
-
-Front-end submit button (“Send til godkendelse”)
 ```css
+/* Send til godkendelse (submit on front-end form) */
 .arkiv-submit-form button[type="submit"] {
-  padding: 10px 14px;
+  padding: 10px 14px !important;
 }
-```
 
-Edit link button (“Rediger”)
-```css
+/* rediger knap i post view */
 .arkiv-edit-button {
-  display: inline-flex;
-  padding: 10px 18px;
-  border-radius: 999px;
-  background: #6d597a;
-  color: #ffffff;
-  text-decoration: none;
-  font-size: 15px;
-  margin-top: 8px;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
+  background: #6d597a !important;
+  color: #000 !important;
 }
-```
 
-Tile delete buttons (“Slet” on images/PDFs)
-```css
+/* Slet knap på billed-/PDF-fliser */
 .arkiv-delete-image,
 .arkiv-delete-pdf {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: rgba(17,17,17,.9);
-  color: #fff;
-  border: none;
-  border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 12px;
-  cursor: pointer;
+  background: rgba(17, 17, 17, 0.9) !important;
+  color: #fff !important;
 }
-```
 
-Edit form action buttons (“Gem”, “Annuller”, “Slet indlæg”)
-```css
+/* Gem / Annuller / Slet indlæg i redigeringsformular */
 .arkiv-edit-save {
-  border: none;
-  background: #111;
-  color: #fff;
-  padding: 10px 18px;
-  border-radius: 999px;
-  cursor: pointer;
-  font-size: 15px;
+  background: #111 !important;
+  color: #fff !important;
 }
 
 .arkiv-edit-cancel {
-  padding: 10px 18px;
-  border-radius: 999px;
-  background: #e8e8e8;
-  text-decoration: none;
-  color: #111;
-  font-size: 15px;
+  background: #e8e8e8 !important;
+  color: #111 !important;
 }
 
 .arkiv-edit-delete {
-  margin-left: auto;
-  padding: 10px 18px;
-  border-radius: 999px;
-  background: #d63638;
-  color: #fff;
-  border: none;
-  cursor: pointer;
-  font-size: 15px;
+  background: #d63638 !important;
+  color: #fff !important;
 }
-```
 
-Lightbox controls (close/prev/next)
-```css
+/* Lightbox controls */
 .arkiv-lightbox-close {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  font-size: 32px;
-  color: #fff;
-  cursor: pointer;
-  line-height: 1;
-  background: transparent;
-  border: none;
+  color: #fff !important;
 }
 
 .arkiv-lightbox-nav {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 48px;
-  color: #fff;
-  background: rgba(0,0,0,.35);
-  border: none;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2;
+  color: #fff !important;
+  background: rgba(0, 0, 0, 0.35) !important;
 }
-```
 
-Admin review delete button (“Slet indlæg”)
-```css
+/* Admin review delete button ("Slet indlæg") */
 button[name="arkiv_admin_delete_btn"] {
-  margin-left: auto;
-  background: #d63638;
-  color: #fff;
-  border-color: #b32d2e;
+  background: #d63638 !important;
+  color: #fff !important;
+  border-color: #b32d2e !important;
 }
 ```
