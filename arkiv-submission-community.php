@@ -43,6 +43,7 @@ class Arkiv_Submission_Plugin {
     add_action('admin_init', [$this, 'maybe_handle_admin_review']);
     add_action('admin_enqueue_scripts', [$this, 'enqueue_mappe_admin_assets']);
     add_action('wp_head', [$this, 'output_mappe_knapper_styles']);
+    add_action('widgets_init', [$this, 'register_picture_of_day_widget']);
     add_action('wp_ajax_arkiv_submit', [$this, 'handle_ajax_submit']);
     add_action('wp_ajax_arkiv_create_post', [$this, 'handle_ajax_create_post']);
     add_action('wp_ajax_arkiv_upload_image', [$this, 'handle_ajax_upload_image']);
@@ -67,6 +68,10 @@ class Arkiv_Submission_Plugin {
 
   public function seed_admin_capabilities() {
     self::seed_admin_capabilities_for_administrators();
+  }
+
+  public function register_picture_of_day_widget() {
+    register_widget('Arkiv_Picture_Of_Day_Widget');
   }
 
   private static function seed_admin_capabilities_for_administrators() {
@@ -2789,6 +2794,133 @@ JS;
     $redirect_url = home_url('/' . trim($slug, '/') . '/');
     wp_safe_redirect(wp_logout_url($redirect_url));
     exit;
+  }
+
+  public static function get_picture_of_day_item() {
+    $posts = get_posts([
+      'post_type' => self::CPT,
+      'post_status' => 'publish',
+      'posts_per_page' => 50,
+      'fields' => 'ids',
+      'orderby' => 'date',
+      'order' => 'DESC',
+      'no_found_rows' => true,
+    ]);
+
+    if (empty($posts)) {
+      return null;
+    }
+
+    $items = [];
+    foreach ($posts as $post_id) {
+      $gallery_ids = get_post_meta($post_id, '_arkiv_gallery_ids', true);
+      if (!is_array($gallery_ids)) {
+        $gallery_ids = [];
+      }
+      $pdf_ids = get_post_meta($post_id, '_arkiv_pdf_ids', true);
+      if (!is_array($pdf_ids)) {
+        $pdf_ids = [];
+      }
+      $thumbnail_id = get_post_thumbnail_id($post_id);
+      if ($thumbnail_id) {
+        $gallery_ids[] = (int) $thumbnail_id;
+      }
+
+      $attachment_ids = array_unique(array_merge($gallery_ids, $pdf_ids));
+      foreach ($attachment_ids as $attachment_id) {
+        $items[] = [
+          'post_id' => (int) $post_id,
+          'attachment_id' => (int) $attachment_id,
+        ];
+      }
+    }
+
+    if (empty($items)) {
+      return null;
+    }
+
+    $timestamp = current_time('timestamp');
+    $index = (int) date('z', $timestamp);
+    $item = $items[$index % count($items)];
+    $mime_type = get_post_mime_type($item['attachment_id']);
+    $item['is_pdf'] = $mime_type === 'application/pdf';
+
+    return $item;
+  }
+}
+
+class Arkiv_Picture_Of_Day_Widget extends WP_Widget {
+  public function __construct() {
+    parent::__construct(
+      'arkiv_picture_of_day_widget',
+      'Arkiv: Dagens billede',
+      ['description' => 'Viser et billede eller dokument fra arkivet hver dag.']
+    );
+  }
+
+  public function widget($args, $instance) {
+    $title = isset($instance['title']) ? $instance['title'] : 'Dagens billede';
+    $item = Arkiv_Submission_Plugin::get_picture_of_day_item();
+
+    echo $args['before_widget'];
+
+    if ($title !== '') {
+      echo $args['before_title'] . esc_html($title) . $args['after_title'];
+    }
+
+    if ($item) {
+      $link = get_permalink($item['post_id']);
+      $thumb = wp_get_attachment_image($item['attachment_id'], 'medium', false, [
+        'class' => 'arkiv-picture-of-day-media',
+      ]);
+
+      if (!$thumb && $item['is_pdf']) {
+        $icon = wp_mime_type_icon($item['attachment_id']);
+        if ($icon) {
+          $thumb = '<img class="arkiv-picture-of-day-media" src="' . esc_url($icon) . '" alt="">';
+        }
+      }
+
+      if ($thumb) {
+        echo '<a class="arkiv-picture-of-day-link" href="' . esc_url($link) . '">';
+        echo $thumb;
+        echo '</a>';
+      } else {
+        echo '<p class="arkiv-picture-of-day-empty">Ingen billede at vise endnu.</p>';
+      }
+    } else {
+      echo '<p class="arkiv-picture-of-day-empty">Ingen indhold at vise endnu.</p>';
+    }
+
+    echo '<style>
+      .arkiv-picture-of-day-link { display: block; text-decoration: none; }
+      .arkiv-picture-of-day-media { width: 100%; height: auto; border-radius: 12px; display: block; }
+      .arkiv-picture-of-day-empty { font-size: 14px; opacity: 0.7; }
+    </style>';
+
+    echo $args['after_widget'];
+  }
+
+  public function form($instance) {
+    $title = isset($instance['title']) ? $instance['title'] : 'Dagens billede';
+    ?>
+    <p>
+      <label for="<?php echo esc_attr($this->get_field_id('title')); ?>">Titel:</label>
+      <input
+        class="widefat"
+        id="<?php echo esc_attr($this->get_field_id('title')); ?>"
+        name="<?php echo esc_attr($this->get_field_name('title')); ?>"
+        type="text"
+        value="<?php echo esc_attr($title); ?>"
+      >
+    </p>
+    <?php
+  }
+
+  public function update($new_instance, $old_instance) {
+    $instance = [];
+    $instance['title'] = isset($new_instance['title']) ? sanitize_text_field($new_instance['title']) : '';
+    return $instance;
   }
 }
 
