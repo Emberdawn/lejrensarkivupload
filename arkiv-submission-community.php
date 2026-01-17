@@ -3,7 +3,7 @@
  * Plugin Name: Arkiv Submission (Community)
  * Description: Frontend indsendelse af Arkiv-indlæg med multiple billeduploads + moderation (pending).
  * Version: 1.0.0
- * Author: You
+ * Author: Youhjjk
  */
 
 if (!defined('ABSPATH')) {
